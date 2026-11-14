@@ -1,0 +1,10 @@
+# FreeCAD backups, written next to a document each time it is re-saved
+*.FCBak
+*.FCStd1
+
+# Tooling caches
+.ruff_cache/
+__pycache__/
+
+# macOS
+.DS_Store
