@@ -8,7 +8,7 @@
 | --- | --- |
 | [`esp32c3-supermini-hmmd-case`](parts/esp32c3-supermini-hmmd-case) | Two-part case (base + lid) for an ESP32-C3 SuperMini Plus (red, V2) together with a Waveshare HMMD mmWave sensor. The GPIO header pins stick out through the lid; the sensor's antennas look down through a thin radome floor in the base. |
 | [`esp32c3-supermini-case`](parts/esp32c3-supermini-case) | ESP32-only variant of the case, without the sensor bay. Same two-part design with the header pins on top. |
-| [`esp32c3-ceiling-multisensor`](parts/esp32c3-ceiling-multisensor) | Round ceiling unit for a 140 mm hole: ESP32-C3 SuperMini Plus, DHT22 module, MH-Z19B CO₂ sensor and the Waveshare HMMD. Three swing clamps grip ceilings 30–40 mm thick. On the room side the HMMD sits in a ball gimbal that tilts 25° in any direction. |
+| [`esp32c3-ceiling-multisensor`](parts/esp32c3-ceiling-multisensor) | Round ceiling unit for a 70 mm hole: ESP32-C3 SuperMini Plus, DHT22 module, MH-Z19B CO₂ sensor and the Waveshare HMMD. Three swing clamps grip ceilings 30–40 mm thick. On the room side the HMMD looks out through a fixed radome face tilted 25°, beside the flush DHT22 grille; the MH-Z19B and the ESP32 sit in a sensor tower above. |
 
 ## Layout
 
@@ -39,38 +39,45 @@ The script saves its `.FCStd` next to itself (`SAVE_PATH`). Both the `exec(...)`
 
 ## Ceiling multisensor
 
-The ESP32-C3, DHT22, MH-Z19B and HMMD go into a cylinder that fits a 140 mm (R 70) hole in the ceiling. A 164 mm trim covers the edge of the hole, and the housing stands 17 mm above a 35 mm ceiling.
+The ESP32-C3, DHT22, MH-Z19B and HMMD go into a 68 mm cylinder that fits a 70 mm hole in the ceiling. A 94 mm trim covers the edge of the hole. The HMMD and the DHT22 sit in the trim; the MH-Z19B and the ESP32 sit in a sensor tower on top of the housing. The unit is 85 mm tall from the trim face and stands 47 mm above a 35 mm ceiling.
 
-- **Clamps:** turn a trim screw clockwise and the nyloc nut swings its arm out to a stop. The arm then pulls down onto the top of the ceiling. Turning anticlockwise swings the arm back in.
-- **Gimbal:** the HMMD sits in a 50 mm ball whose flat face is the radome (0.8 mm wall, 6.2 mm air gap, as in the other case). A neck on the back of the ball limits the tilt to 25°.
-- **Sensors:** the DHT22 grille sits flush in a window of the trim, in a closed bay away from the electronics. The MH-Z19B hangs chamber-down over vents in a bay of its own.
-- **Power:** the ESP32 stands on edge with its USB-C in a slot in the top lid, so the cable plugs in from the space above.
+- **Clamps:** turn a trim screw clockwise and the nyloc nut swings its arm out to a stop. The arm then pulls down onto the top of the ceiling and grips 8 mm past the edge of the hole. Turning anticlockwise swings the arm back in.
+- **HMMD:** the HMMD sits in a fixed plug whose flat face is the radome (0.8 mm wall, 6.2 mm air gap, as in the other case). The face is tilted 25° and sticks out 10 mm below the trim. To aim it, turn the whole unit in the hole before you tighten the clamps. The plug goes in from the room side until it stops, and crush ribs hold it, so it can be swapped without opening the unit.
+- **DHT22:** the grille sits flush in a window of the trim, in a closed bay beside the HMMD plug.
+- **MH-Z19B:** it hangs chamber-down over vents in the tower deck. Room air reaches it through slots in the trim and the space under the deck.
+- **Power:** the ESP32 stands on edge against the tower wall with its USB-C in a slot in the top lid, so the cable plugs in from the space above.
+- **Wiring:** there are no headers or DuPont plugs. Solder the leads straight into the ESP32 and HMMD pin holes and onto the DHT22 and MH-Z19B pins.
 
 Hardware:
 
 - Clamps: 3 × M4 × 55 countersunk (ISO 10642) and 3 × M4 nyloc nuts (DIN 985).
-- Gimbal friction: 3 × M3 × 20 countersunk and 3 × M3 nuts.
-- Lids: 3 × M3 × 10 for the top lid and 4 × M3 × 8 for the two bay lids. These go into 2.6 mm pilot holes.
+- Tower: 3 × M3 × 12 countersunk, from the deck into the housing.
+- Lids: 3 × M3 × 10 for the top lid and 4 × M3 × 8 for the DHT22 bay lid and the MH-Z19B frame.
+
+All the M3 screws go into 2.6 mm pilot holes.
 
 Assembly:
 
-1. Put the HMMD into the ball with its antennas toward the flat face, resting on the three ledges, and plug its jumper wires on. Slide the keeper in and lead the wires out through the slot in its cap.
-2. Drop the ball into the socket from above and put the retainer on. Put the M3 nuts in its top pockets and fit the M3 × 20 screws from the room side. Tighten them until the ball holds its aim.
-3. Put the DHT22 grille-down into its window, screw its bay lid on, and lead the wires out through the notch.
-4. Put the MH-Z19B chamber-down into its bay, then screw the frame on.
-5. Wire everything, then stand the ESP32 in its socket by the wall with the USB-C up and the components facing the centre.
-6. Put the top lid on so the USB-C enters its slot, then screw it down.
-7. Put an arm into the top of each clamp channel with a nyloc nut in its pocket. Hold the arm tucked in and screw the M4 × 55 in from the room side until the head sits flush.
-8. Push the unit into the hole and tighten the three M4 screws.
+1. Solder the leads to the DHT22 pins, lay it grille-down in its bay in the housing, screw the bay lid on, and lead the wires out through the notch.
+2. Solder five leads to the HMMD's J2 pads. Put the HMMD into the plug with its antennas toward the flat face, resting on the three ledges. Push the keeper in and lead the wires out through the slot in its cap.
+3. Feed the HMMD leads up through the opening in the trim, then push the plug in from the room side until it stops.
+4. Put an arm into each clamp channel from above, with a nyloc nut in its pocket. Hold the arm tucked in and screw the M4 × 55 in from the room side until the head sits flush.
+5. Thread the DHT22 and HMMD leads up through the slot in the deck and set the tower on the housing, so the M4 screw ends go into their holes under the deck. Screw it down with the three M3 × 12 screws.
+6. Solder the leads to the MH-Z19B pins, put it chamber-down into its bay, then screw the frame on.
+7. Solder the leads to the ESP32, then stand it in its socket by the wall with the USB-C up and the components facing the centre.
+8. Put the top lid on so the USB-C enters its slot, then screw it down.
+9. Push the unit into the hole, turn it so the HMMD faces where you want, and tighten the three M4 screws.
 
-Print the housing trim face down. Print the ball radome face down on a smooth bed. Print the other parts as exported, and the arm three times. None of the parts need supports.
+Print the housing trim face down and the tower deck down. Print the HMMD plug radome face down on a smooth bed. Print the other parts as exported, and the arm three times. None of the parts need supports. The three M4 holes under the tower deck are closed by short bridges.
 
 Caveats:
 
 - The bay fits only the pins version of the MH-Z19B. The JST version is 39.3 mm long and does not fit.
 - The DHT22 module dimensions come from a retailer drawing. Measure yours; the window takes a 15.1 × 25.1 mm sensor body.
-- `INTERIOR_VENTS` cuts slots in the trim and lid so room air flows past the ESP32 into the space above. Set it to `False` if that space is a cold attic.
-- The ESP32 antenna sits inside the ceiling opening. If Wi-Fi is weak there, use the U.FL socket with an external antenna.
+- The MH-Z19B samples the air under the deck, about 50 mm above the room, so it responds more slowly than a sensor in the trim would.
+- If the HMMD plug sits loose (printers differ), add a drop of glue at its top edge.
+- `INTERIOR_VENTS` cuts slots in the lid so room air rises from under the deck past the ESP32 into the space above. Set it to `False` if that space is a cold attic.
+- The ESP32 antenna sits in the tower above the ceiling. If Wi-Fi is weak there, use the U.FL socket with an external antenna.
 
 ## Adding a part
 

@@ -1,4 +1,4 @@
-"""ESP32-C3 SuperMini Plus (red) + DHT22 + MH-Z19B + Waveshare HMMD - round ceiling unit with an eyeball gimbal.
+"""ESP32-C3 SuperMini Plus (red) + DHT22 + MH-Z19B + Waveshare HMMD - round ceiling unit, HMMD fixed at 25 deg.
 
 Run inside FreeCAD:
     exec(open("/Users/antek/projektowanie/parts/esp32c3-ceiling-multisensor/esp32c3_ceiling_multisensor.py").read())
@@ -6,20 +6,23 @@ or headless:
     freecadcmd /Users/antek/projektowanie/parts/esp32c3-ceiling-multisensor/esp32c3_ceiling_multisensor.py
 
 Frame (mm): origin on the hole axis at the UNDERSIDE of the ceiling, +Z up into the ceiling. The trim (bezel) sits on
-the room side (z = -BEZEL_T..0) and covers the edge of the hole; the housing fills the hole and stands up into the open
-space above the ceiling. Edit a parameter and re-run; the model is only saved / exported if every check passes.
+the room side (z = -BEZEL_T..0) and covers the edge of the hole; the housing fills the hole and the sensor tower on top
+of it stands up into the open space above the ceiling. Edit a parameter and re-run; the model is only saved / exported
+if every check passes.
 
  * Mounting: three swing clamps, like in-ceiling speakers. Push the unit into the hole and turn the three countersunk
    M4 screws in the trim clockwise: the nyloc nut in each arm drags the arm round until it hits its stop (arm now
    pointing outward over the ceiling), then the arm is pulled down onto the top of the ceiling. Any ceiling between
    CEIL_T_MIN and CEIL_T_MAX works. Undo: turn anticlockwise, the arms swing back in and the unit drops out.
- * Gimbal: the HMMD sits in a ball (eyeball) whose flat face is the radome (same radome rules as the other case). The
-   ball turns in a spherical socket formed by the trim and a retainer ring, up to TILT_MAX in any direction; a neck on
-   the back of the ball is the end stop. Three countersunk M3 screws in the trim pull the retainer down = friction.
- * DHT22 module: its grille sits in a window of the trim, in a closed bay of its own, away from the warm electronics.
- * MH-Z19B: hangs chamber-down in a vented bay of its own, pins up; the bay frame keeps it in place.
- * ESP32-C3: stands on edge under the top lid with its USB-C in a slot of the lid, so a cable plugs in from above
-   (the open space over the ceiling). The lid also caps the clamp channels and holds the top ends of the M4 screws.
+ * HMMD: fixed in a plug whose flat face is the radome (same radome rules as the other case), tilted POD_TILT toward
+   POD_LOOK; turn the whole unit in the hole to aim it. The plug drops straight down into a socket in the housing and
+   pokes through the trim; a flare at its top sits on the socket and crush ribs hold it. Printed radome face down.
+ * DHT22 module: its grille sits flush in a window of the trim, in a closed bay of its own, beside the HMMD plug.
+ * MH-Z19B: hangs chamber-down over vents in the deck of the sensor tower, pins up; the bay frame keeps it in place.
+   Room air reaches it through vent slots in the trim and the space under the deck (plenum).
+ * ESP32-C3: stands on edge by the tower wall with its USB-C in a slot of the top lid, so a cable plugs in from above
+   (the open space over the ceiling). The deck also caps the clamp channels and holds the top ends of the M4 screws.
+ * Wiring: leads are soldered straight to the modules (no DuPont plugs), to keep the unit short.
 """
 
 import math
@@ -35,46 +38,53 @@ STL_DIR = PART_DIR + "/stl"
 SAVE = True  # save SAVE_PATH after building (only if every check passes)
 # one STL per printed part, in print orientation (only if every check passes)
 EXPORT_STL = True
-# display only: ball tilt (direction deg, tilt deg); the checks use their own angles
-SHOW_TILT = (0.0, 0.0)
 
 # ------------------------------------------------------------------ ceiling (user spec)
-HOLE_R = 70.0  # radius of the hole in the ceiling
+HOLE_R = 35.0  # radius of the hole in the ceiling (70 mm across)
 CEIL_T = 35.0  # ceiling thickness (open space above it); used for the reference model
 CEIL_T_MIN, CEIL_T_MAX = 30.0, 40.0  # the clamps grip any thickness in this range
 
-# ------------------------------------------------------------------ housing
+# ------------------------------------------------------------------ housing + sensor tower
 BODY_R = HOLE_R - 1.0  # outer radius of everything that goes into the hole
 WALL = 2.0
 BEZEL_R, BEZEL_T = HOLE_R + 12.0, 3.0  # trim ring on the room side
+DECK_T = 3.0  # tower floor: caps the clamp channels, carries the sensor bays
+# M3 x 12 countersunk from the deck into columns of the housing (tower -> housing)
+TOWER_SCREW_ANGLES, TOWER_SCREW_R, COL_R = (136.0, 256.0, 16.0), 28.3, 2.6
+COL_Z0 = 22.0  # the columns start here, on 45 deg supports, clear of the HMMD plug and DHT22 bay
+# room-air slots in the trim, by the wall (r0, r1) and the ribs between them
+VENT_R0, VENT_R1, VENT_RIB = 29.75, 31.75, 2.5
 
 # ------------------------------------------------------------------ swing clamps (M4 x 55 countersunk + M4 nyloc)
 CLAMP_ANGLES = (90.0, 210.0, 330.0)
-CLAMP_R = 59.0  # screw axis radius
+CLAMP_R = 28.0  # screw axis radius
 # ISO 10642 countersunk screw; the length includes the head
 M4_D, M4_BORE, M4_HEAD_D, M4_LEN = 4.0, 4.5, 8.0, 55.0
 NUT4_AF, NUT4_H = 7.0, 5.0  # DIN 985
 # arm: thickness, bar width, axis to tip, nut boss radius
-ARM_T, ARM_W, ARM_L, ARM_BOSS_R = 7.0, 10.0, 24.0, 6.5
+ARM_T, ARM_W, ARM_L, ARM_BOSS_R = 7.0, 7.0, 15.0, 5.2
 ARM_CLR = 0.8  # clamp channel clearance around the swinging arm
 ARM_STOP_GAP = 0.3  # arm side to its stop face when pointing straight out
-TUBE_WALL = 1.6  # screw guide tube
+ARM_GRIP_MIN = 8.0  # the arms must reach this far over the ceiling top
 PARK_GAP = 2.0  # parked (retracted) arm bottom above CEIL_T_MAX
 
-# ------------------------------------------------------------------ gimbal (ball + socket)
-BALL_R = 25.0
-BALL_FACE_ANG = 40.0  # half-angle of the flat radome face (deg); 90 - this = overhang
-NECK_R, NECK_TOP = 16.0, 27.0  # neck on the back of the ball: tilt stop + wire exit
-SEAT_CLR = 0.15  # ball to socket, radial
-SEAT_RIM_ANG = 68.0  # lowest socket contact, polar angle from straight down (deg)
-TILT_MAX = 25.0  # deg, any direction
-RET_GAP = 1.2  # retainer to hub at nominal; the M3 screws close it to add friction
-HUB_R = 35.5  # outer radius of the socket hub and the retainer ring
-# M3 x 20 countersunk friction screws into M3 nuts in the retainer
-FRICTION_R, FRICTION_ANGLES = 30.5, (30.0, 150.0, 270.0)
+# ------------------------------------------------------------------ HMMD plug (fixed tilt)
+POD_TILT = 25.0  # radome face from horizontal (deg)
+# direction the radar is tilted toward (deg); turn the unit in the hole to aim it
+POD_LOOK = 180.0
+POD_C = (0.0, -10.5)  # plug footprint centre (world x, y)
+POD_WALL = 1.2  # plug wall round the HMMD pocket
+POD_TOP = 14.0  # plug top above the face centre
+POD_EDGE = 0.5  # high edge of the radome face below the trim face
+POD_CR = 2.0  # footprint corner radius
+# stop lip of the socket over the chamfered front top edge of the plug: width, thickness
+LIP_W, LIP_T = 2.0, 1.5
+POD_CLR = 0.2  # plug to socket
+SOCK_W = 1.6  # socket wall
+POD_RIB = 0.15  # crush rib interference, plug in its socket
 M3_D, M3_BORE, M3_HEAD_D, M3_PILOT = 3.0, 3.4, 6.0, 2.6
-NUT3_AF, NUT3_H = 5.5, 2.4
-KEEPER_WALL, KEEPER_CLR, CAP_T = 1.0, 0.1, 2.0  # HMMD keeper: square tube + neck cap
+# HMMD keeper: square tube + cap on the plug top
+KEEPER_WALL, KEEPER_CLR, CAP_T = 1.0, 0.1, 2.0
 
 # ------------------------------------------------------------------ ESP32-C3 SuperMini Plus (red V2) - as the other cases
 # PCB size / row spacing: manufacturer datasheet. Component positions: pixel-measured on the to-scale ESPboards
@@ -90,10 +100,13 @@ USB_CX, USB_W, USB_LEN, USB_H, USB_OVERHANG = PCB_W / 2, 8.94, 7.3, 3.26, 1.87
 BUTTONS = {"BOOT": (5.96, 13.96), "RST": (12.05, 13.96)}
 BTN_W, BTN_D, BTN_H = 4.0, 3.0, 2.0
 HDR_W, HDR_H, HDR_TAIL, HDR_LONG = 2.54, 2.5, 3.0, 6.0
-DUPONT_L = 14.0  # female jumper housing length (reference, for wiring room)
+# leads soldered into the pin holes: joint below, insulated stub above (reference, wiring room)
+WIRE_JOINT, WIRE_STUB = 1.0, 2.5
 # the board stands on edge at ESP_ANGLE, its back face ESP_BACK_R from the axis
-ESP_ANGLE, ESP_BACK_R = 260.0, 57.0
+ESP_ANGLE, ESP_BACK_R = 90.0, 29.6
 ESP_TOP_GAP = 0.3  # PCB end (USB side) to the lid underside
+ESP_LIFT = 4.2  # antenna end of the board above the deck
+LID_COLS = ((29.3, 60.0), (29.3, 200.0), (29.3, 320.0))  # top lid screws (r, deg)
 
 # ------------------------------------------------------------------ Waveshare HMMD (S3KM1110, 24 GHz) - as the other case
 HM_W, HM_L, HM_R = 20.0, 20.0, 1.4
@@ -132,8 +145,10 @@ HM_CLR = 0.2
 
 # ------------------------------------------------------------------ DHT22 / AM2302 module (black PCB, right-angle header)
 # Sensor body: AM2302 datasheet. Module: retailer drawing (13 mm PCB, 43 mm overall incl. pins) + photos.
-# bay direction and distance of its centre line from the axis
-DHT_ANGLE, DHT_DIST = 20.0, 47.5
+# bay direction and distance of its centre line from the axis (bay coordinates: z = 0 on the trim)
+DHT_ANGLE, DHT_DIST = 90.0, 11.2
+DHT_WIRE = 3.5  # room beyond the header pins for the soldered leads to turn up
+DHT_BOSS_X = 6.0  # bay lid screws, on the wall side of the bay
 DHT_BODY_W, DHT_BODY_L, DHT_BODY_T = 15.1, 25.1, 7.7
 DHT_BODY_T_MIN, DHT_BODY_T_MAX = 7.4, 8.0
 DHT_PCB_W, DHT_PCB_L, DHT_PCB_T = 13.0, 28.2, 1.6
@@ -143,7 +158,7 @@ DHT_LIP, DHT_CLR = 0.6, 0.25  # window lip under the grille; clearance around th
 DHT_BAY_TOP = 8.4  # bay lid underside
 
 # ------------------------------------------------------------------ MH-Z19B (pins type), Winsen manual v1.7 drawing
-MZ_ANGLE, MZ_DIST = 140.0, 50.0
+MZ_ANGLE, MZ_DIST = 270.0, 4.0  # bay coordinates: z = 0 on the deck
 MZ_CH_L, MZ_CH_W, MZ_CH_H = 26.53, 19.5, 6.5  # gold chamber, 8.1 mm overall with PCB
 MZ_BUMP_H = 0.5  # round boss on the chamber top (8.6 mm overall)
 MZ_PCB_L, MZ_PCB_W, MZ_PCB_T = 32.5, 19.7, 1.6
@@ -155,48 +170,54 @@ MZ_GAP = 1.2  # chamber (bump) to the vented floor
 MZ_CLR = 0.45
 
 # ------------------------------------------------------------------ misc
-# slots in the trim + lid: a chimney through the electronics (False over a cold attic)
+# slots in the lid: room air rises from the plenum past the ESP32 into the space above (False over a cold attic)
 INTERIOR_VENTS = True
 WIRE_HOLE_D = 7.0  # extra hole in the lid for a power cable instead of USB-C (0 = none)
+# slot in the deck (x0, y0, x1, y1, width): HMMD + DHT22 leads up into the tower, also a chimney
+DECK_SLOT = (-11.0, 12.5, 11.0, 12.5, 2.4)
 BAY_WALL = 1.6
 BOSS_R = 3.25  # screw bosses (M3 into a 2.6 mm pilot)
 
 # ------------------------------------------------------------------ derived
 D2R = math.pi / 180.0
 ARM_PARK_Z = CEIL_T_MAX + PARK_GAP  # parked arm bottom
-# top of the housing = lid underside; the lid is also the top stop of the arms
-TOP_Z = ARM_PARK_Z + ARM_T + 1.0
+# top of the housing = deck underside; the deck is also the top stop of the arms
+HOUSING_Z = ARM_PARK_Z + ARM_T + 1.0
+DECK_Z = HOUSING_Z + DECK_T  # deck top = z 0 of the bay coordinates
+CH_Z0 = CEIL_T_MIN - 1.5  # the clamp channels start here, on 45 deg supports
+TOP_Z = DECK_Z + ESP_LIFT + PCB_L + ESP_TOP_GAP  # tower top = lid underside
 LID_T = 2.4
-TUBE_TOP = CEIL_T_MIN - 1.0  # screw guide tubes end below the lowest arm position
+M4_BEARING = 2.5  # blind hole in the deck underside that takes the M4 screw end
 # clamp channel, in clamp coordinates (x radial out, y anticlockwise seen from above)
 NOTCH_X0 = -(ARM_W / 2 + ARM_CLR)
 NOTCH_Y1 = ARM_W / 2 + ARM_STOP_GAP  # straight-out stop face
 NOTCH_RAD = ARM_L + ARM_CLR
 NOTCH_BOSS = ARM_BOSS_R + ARM_CLR
-# lid screw column (x, y, r) beside each channel, clamp coordinates
-LID_COL = (4.0, NOTCH_Y1 + WALL + 3.5, 3.5)
 NUT4_POCKET = NUT4_H + 0.2
 
-BALL_FACE_D = BALL_R * math.cos(BALL_FACE_ANG * D2R)  # ball centre to the radome face
-BALL_FACE_R = BALL_R * math.sin(BALL_FACE_ANG * D2R)
-SEAT_R = BALL_R + SEAT_CLR
-# ball centre (nominal, concentric with the socket)
-Z_BALL = -BEZEL_T + SEAT_R * math.cos(SEAT_RIM_ANG * D2R)
-# neck root, polar angle from the ball axis
-NECK_ANG = math.degrees(math.asin(NECK_R / BALL_R))
-RET_TOP_ANG = NECK_ANG + TILT_MAX  # retainer rim, polar angle from straight up
-Z_RET0 = Z_BALL + RET_GAP
-Z_RET1 = Z_BALL + SEAT_R * math.cos(RET_TOP_ANG * D2R)
-Z_POCKET = -BALL_FACE_D + RADOME_T  # ball frame: radome inner face
-Z_HM_FRONT = Z_POCKET + HM_H  # ball frame: HMMD antenna face
-HM_X0, HM_Y0 = -HM_W / 2, -HM_L / 2  # ball frame: HMMD plan origin
+# HMMD frame (H): radome face at z = 0, HMMD toward +z, +x up the slope; the plug is printed in this frame.
+# Plug frame (P): same origin (face centre), z vertical, +x the way the radar is tilted.
+Z_POCKET = RADOME_T  # H: radome inner face
+Z_HM_FRONT = Z_POCKET + HM_H  # H: HMMD antenna face
+HM_X0, HM_Y0 = -HM_W / 2, -HM_L / 2  # H: HMMD plan origin
 PKT = HM_W / 2 + HM_CLR  # half size of the square HMMD pocket
+POD_HW = PKT + POD_WALL
+S_T, C_T = math.sin(POD_TILT * D2R), math.cos(POD_TILT * D2R)
+# P: plug footprint, back (low side) to front; the back reaches the top corner of the leaning pocket
+POD_X0 = -PKT * C_T - (POD_TOP + PKT * S_T) / C_T * S_T - POD_WALL
+POD_X1 = PKT * C_T - RADOME_T * S_T + POD_WALL
+POD_MID = (POD_X0 + POD_X1) / 2
+# world z of the face centre: the front (high) edge of the face sits POD_EDGE under the trim face
+Z_FACE = -BEZEL_T - POD_EDGE - POD_X1 * S_T / C_T
+KEEPER_Z0 = Z_HM_FRONT + HM_T_MAX + 0.1  # H: keeper bottom (on the HMMD back)
 
-# DHT22 bay frame (x along the bay, y toward the axis)
-DHT_X_TAB = 28.1 - 0.5  # far end of the sensor body
+# DHT22 bay frame (x along the bay, y toward the axis); the bay is centred on x = 0
+DHT_X_TAB = (
+    DHT_OVERHANG + DHT_PCB_L + DHT_PIN_OUT + DHT_WIRE - 0.5
+) / 2  # far end of the body
 DHT_X_PCB0 = DHT_X_TAB - DHT_OVERHANG - DHT_PCB_L  # header end of the PCB
-# inner x0, x1, half width: room for a jumper housing on the pins + the wire bend
-DHT_BAY = (DHT_X_PCB0 - DUPONT_L - 4.5, DHT_X_TAB + 0.5, DHT_BODY_W / 2 + 0.55)
+# inner x0, x1, half width: room for the header pins + the leads soldered to them
+DHT_BAY = (DHT_X_PCB0 - DHT_PIN_OUT - DHT_WIRE, DHT_X_TAB + 0.5, DHT_BODY_W / 2 + 0.55)
 DHT_Z_FACE = -BEZEL_T + DHT_LIP  # grille face
 
 # MH-Z19B PCB lower face (chamber side, facing down) and frame underside
@@ -291,9 +312,20 @@ def clamp_plc(angle):
     return App.Placement(polar(CLAMP_R, angle), App.Rotation(V(0, 0, 1), angle))
 
 
-def bay_plc(angle, dist):
-    """Bay coordinates -> world: x anticlockwise along the chord, y toward the axis, origin on the bay centre line."""
-    return App.Placement(polar(dist, angle), App.Rotation(V(0, 0, 1), angle + 90.0))
+def bay_plc(angle, dist, z=0.0):
+    """Bay coordinates -> world: x anticlockwise along the chord, y toward the axis, origin on the bay centre line
+    at height z (the trim top for the DHT22, the deck top for the MH-Z19B)."""
+    return App.Placement(
+        polar(dist, angle) + V(0, 0, z), App.Rotation(V(0, 0, 1), angle + 90.0)
+    )
+
+
+def dht_plc():
+    return bay_plc(DHT_ANGLE, DHT_DIST)
+
+
+def mz_plc():
+    return bay_plc(MZ_ANGLE, MZ_DIST, DECK_Z)
 
 
 def esp_plc():
@@ -307,23 +339,46 @@ def esp_plc():
     return App.Placement(m)
 
 
-def ball_plc(direction=0.0, tilt=0.0):
-    """Ball coordinates (centre at origin, radome face toward -z) -> world, tilted toward `direction`."""
-    # this axis tilts the back of the ball toward `direction`
-    axis = V(-math.sin(direction * D2R), math.cos(direction * D2R), 0)
-    return App.Placement(V(0, 0, Z_BALL), App.Rotation(axis, tilt))
+def plug_plc():
+    """Plug frame (P: face centre at the origin, z up, +x the way the radar is tilted) -> world."""
+    rot = App.Rotation(V(0, 0, 1), POD_LOOK)
+    o = V(POD_C[0], POD_C[1], Z_FACE) - rot.multVec(V(POD_MID, 0, 0))
+    return App.Placement(o, rot)
+
+
+def h_to_p():
+    """HMMD frame (H: radome face at z = 0, HMMD toward +z) -> plug frame (P)."""
+    return App.Placement(V(0, 0, 0), App.Rotation(V(0, 1, 0), -POD_TILT))
+
+
+def hm_plc():
+    """HMMD frame -> world."""
+    return plug_plc().multiply(h_to_p())
 
 
 # ------------------------------------------------------------------ ESP32 board model (reference only, its own frame)
 PIN_YS = [PIN_Y_FIRST - i * PIN_PITCH for i in range(PIN_COUNT)]
-HDR_Y0, HDR_Y1 = (
-    PIN_Y_FIRST - (PIN_COUNT - 0.5) * PIN_PITCH,
-    PIN_Y_FIRST + PIN_PITCH / 2,
-)
+
+
+def wire_stubs(x, ys, z_back, z_front):
+    """Soldered leads at pin holes: joint below the board, insulated stub above (wiring room)."""
+    return Part.makeCompound(
+        [
+            box(
+                x - 0.6,
+                y - 0.6,
+                z_back - WIRE_JOINT,
+                x + 0.6,
+                y + 0.6,
+                z_front + WIRE_STUB,
+            )
+            for y in ys
+        ]
+    )
 
 
 def build_esp32(pcb_t=PCB_T):
-    """Back face at z = 0, component side up; headers soldered housing-up with jumper housings on the long pins."""
+    """Back face at z = 0, component side up; no headers, the leads are soldered into the pin holes."""
     parts = {}  # key -> (label, shape, rgb)
     z1 = pcb_t
     pcb = rbox(0, 0, 0, PCB_W, PCB_L, z1, PCB_R)
@@ -401,47 +456,15 @@ def build_esp32(pcb_t=PCB_T):
             rgb,
         )
     for tag, x in zip(("L", "R"), PIN_COL_X):
-        parts["Hdr_%s" % tag] = (
-            "ESP32 header %s 1x8" % tag,
-            box(x - HDR_W / 2, HDR_Y0, z1, x + HDR_W / 2, HDR_Y1, z1 + HDR_H),
-            (0.10, 0.10, 0.10),
-        )
-        pins = [
-            box(
-                x - 0.32,
-                y - 0.32,
-                z1 - HDR_TAIL,
-                x + 0.32,
-                y + 0.32,
-                z1 + HDR_H + HDR_LONG,
-            )
-            for y in PIN_YS
-        ]
-        parts["Pins_%s" % tag] = (
-            "ESP32 header %s pins" % tag,
-            Part.makeCompound(pins),
-            (0.85, 0.70, 0.25),
-        )
-        jump = [
-            box(
-                x - 1.27,
-                y - 1.27,
-                z1 + HDR_H,
-                x + 1.27,
-                y + 1.27,
-                z1 + HDR_H + DUPONT_L,
-            )
-            for y in PIN_YS
-        ]
-        parts["Jumpers_%s" % tag] = (
-            "jumper housings %s (wiring room)" % tag,
-            Part.makeCompound(jump),
+        parts["Wires_%s" % tag] = (
+            "ESP32 soldered leads %s (wiring room)" % tag,
+            wire_stubs(x, PIN_YS, 0, z1),
             (0.2, 0.2, 0.8),
         )
     return parts
 
 
-# ------------------------------------------------------------------ HMMD model (reference only, ball frame)
+# ------------------------------------------------------------------ HMMD model (reference only, HMMD frame)
 def build_hmmd(t=HM_T):
     parts = {}
     zf, zb = Z_HM_FRONT, Z_HM_FRONT + t
@@ -474,49 +497,10 @@ def build_hmmd(t=HM_T):
             box(P(cx - w / 2), Q(cy - d / 2), zb, P(cx + w / 2), Q(cy + d / 2), zb + h),
             (0.45, 0.45, 0.48),
         )
-    hx = P(HM_PIN_X)
-    parts["Hdr"] = (
-        "HMMD J2 header 1x5",
-        box(
-            hx - HDR_W / 2,
-            Q(HM_PIN_V[-1]) - HDR_W / 2,
-            zb,
-            hx + HDR_W / 2,
-            Q(HM_PIN_V[0]) + HDR_W / 2,
-            zb + HDR_H,
-        ),
-        (0.10, 0.10, 0.10),
-    )
-    pins = [
-        box(
-            hx - 0.32,
-            Q(v) - 0.32,
-            zb - HDR_TAIL,
-            hx + 0.32,
-            Q(v) + 0.32,
-            zb + HDR_H + HDR_LONG,
-        )
-        for v in HM_PIN_V
-    ]
-    parts["Pins"] = (
-        "HMMD J2 pins (OT2 RX TX GND 3V3)",
-        Part.makeCompound(pins),
-        (0.85, 0.70, 0.25),
-    )
-    jump = [
-        box(
-            hx - 1.27,
-            Q(v) - 1.27,
-            zb + HDR_H,
-            hx + 1.27,
-            Q(v) + 1.27,
-            zb + HDR_H + DUPONT_L,
-        )
-        for v in HM_PIN_V
-    ]
-    parts["Jumpers"] = (
-        "HMMD jumper housings (wiring room)",
-        Part.makeCompound(jump),
+    # leads soldered into J2 from the back: the joints on the antenna side stay clear of the radome
+    parts["Wires"] = (
+        "HMMD J2 soldered leads (OT2 RX TX GND 3V3)",
+        wire_stubs(P(HM_PIN_X), [Q(v) for v in HM_PIN_V], zf + 0.4, zb),
         (0.2, 0.2, 0.8),
     )
     return parts
@@ -577,9 +561,11 @@ def build_dht(body_t=DHT_BODY_T):
         Part.makeCompound(pins),
         (0.85, 0.70, 0.25),
     )
-    parts["Jumper"] = (
-        "DHT22 jumper housing 1x3 (wiring room)",
-        box(xp - DUPONT_L, -3.81, zp - 1.27, xp, 3.81, zp + 1.27),
+    # leads soldered to the pin ends, turning up toward the wire notch in the bay lid
+    x = xp - DHT_PIN_OUT
+    parts["Wires"] = (
+        "DHT22 soldered leads (wiring room)",
+        box(x - 2.0, -3.81, zp - 1.0, x + 1.0, 3.81, DHT_BAY_TOP + 1.0),
         (0.2, 0.2, 0.8),
     )
     return parts
@@ -620,20 +606,9 @@ def build_mz():
             Part.makeCompound(pins),
             (0.85, 0.70, 0.25),
         )
-        jump = [
-            box(
-                x - 1.27,
-                y - 1.27,
-                zt + MZ_SPACER_H,
-                x + 1.27,
-                y + 1.27,
-                zt + MZ_SPACER_H + DUPONT_L,
-            )
-            for y in ys
-        ]
-        parts["Jumpers_" + tag] = (
-            "MH-Z19B jumper housings %s" % tag,
-            Part.makeCompound(jump),
+        parts["Wires_" + tag] = (
+            "MH-Z19B soldered leads %s (wiring room)" % tag,
+            wire_stubs(x, ys, zt + MZ_PIN_LEN - 1.5 + WIRE_JOINT, zt + MZ_PIN_LEN),
             (0.2, 0.2, 0.8),
         )
     return parts
@@ -651,14 +626,131 @@ def notch_local(grow, z0, z1):
     )
 
 
+def cone_support(foot, r_in, z_top):
+    """World: 45 deg support under a feature by the wall - its footprint foot(z0, z1), trimmed to a cone rising
+    from the wall; r_in = the innermost radius of the footprint."""
+    h = BODY_R - WALL - r_in + 1.0
+    z0 = z_top - h
+    keep = cyl(0, 0, z0, BODY_R, h).cut(
+        cone(0, 0, z0, BODY_R - WALL + 0.01, BODY_R - WALL - h, h)
+    )
+    return foot(z0, z_top).common(keep)
+
+
+def channel_support(p):
+    return cone_support(
+        lambda z0, z1: moved(notch_local(WALL, z0, z1), p),
+        CLAMP_R - max(-NOTCH_X0, NOTCH_BOSS) - WALL,
+        CH_Z0,
+    )
+
+
+def sector(r0, r1, z0, h, ang):
+    """Ring sector from 0 to `ang` deg (anticlockwise)."""
+    return Part.makeCylinder(r1, h, V(0, 0, z0), V(0, 0, 1), ang).cut(
+        cyl(0, 0, z0 - 1, r0, h + 2)
+    )
+
+
+def vent_arcs():
+    """Trim slots (start, end deg) between the M4 countersinks, with ribs (trim_vents() trims them further)."""
+    blocked = sorted((a % 360, 12.0) for a in CLAMP_ANGLES)
+    rib = math.degrees(VENT_RIB / VENT_R1)
+    arcs = []
+    for (a0, w0), (a1, w1) in zip(
+        blocked, blocked[1:] + [(blocked[0][0] + 360, blocked[0][1])]
+    ):
+        s, e = a0 + w0, a1 - w1
+        n = max(1, round((e - s) / 25.0))
+        step = (e - s + rib) / n
+        arcs += [(s + i * step, s + (i + 1) * step - rib) for i in range(n)]
+    return arcs
+
+
+def deck_slot():
+    x0, y0, x1, y1, w = DECK_SLOT
+    return slot(x0, y0, x1, y1, HOUSING_Z - 1, DECK_T + 2, w)
+
+
+def rrect(x0, y0, x1, y1, r, z=0.0):
+    """Rounded rectangle face in the plane at height z."""
+    pts = [
+        V(x0 + r, y0 + r, z),
+        V(x1 - r, y0 + r, z),
+        V(x1 - r, y1 - r, z),
+        V(x0 + r, y1 - r, z),
+    ]
+    face = Part.Face(Part.makePolygon(pts + pts[:1]))
+    return face.makeOffset2D(r) if r > 0 else face
+
+
+def plug_outline(g, z0, z1):
+    """Plug frame: the plug footprint grown by g, from z0 to z1."""
+    return rrect(
+        POD_X0 - g, -POD_HW - g, POD_X1 + g, POD_HW + g, POD_CR + g, z0
+    ).extrude(V(0, 0, z1 - z0))
+
+
+def halfspace(n, p0, size=200.0):
+    """Big box on the side of the plane through p0 that the normal n points to."""
+    return moved(
+        box(0, -size, -size, size, size, size),
+        App.Placement(p0, App.Rotation(V(1, 0, 0), n)),
+    )
+
+
+def plug_socket():
+    """World: the socket round the plug (added to the housing) and the cavity it leaves (cut from the housing). The
+    plug goes in from the room side; the 45 deg lip at the front stops it at its chamfered top edge."""
+    g = POD_CLR + SOCK_W
+    block = plug_outline(g, -Z_FACE - 0.01, POD_TOP + LIP_T)
+    xs = POD_X1 + POD_CLR
+    lip = box(
+        xs - LIP_W,
+        -POD_HW - g,
+        POD_TOP - LIP_W - 2,
+        xs + SOCK_W,
+        POD_HW + g,
+        POD_TOP + LIP_T,
+    )
+    k = POD_X1 + POD_TOP - LIP_W + POD_CLR * math.sqrt(2)
+    lip = lip.common(halfspace(V(1, 0, 1), V(k, 0, 0)))
+    cavity = plug_outline(POD_CLR, -60, POD_TOP + LIP_T + 1).cut(lip)
+    return moved(block, plug_plc()), moved(cavity, plug_plc())
+
+
+def trim_vents():
+    """World: room-air slots through the trim, clear of the DHT22 bay and the plug socket."""
+    x0, x1, hw = DHT_BAY
+    t = BAY_WALL + 1.0
+    keep_out = [
+        moved(
+            fuse_all(
+                [box(x0 - t, -hw - t, -10, x1 + t, hw + t, 10)]
+                + [cyl(bx, by, -10, BOSS_R + 1, 20) for bx, by in dht_bay()[3]]
+            ),
+            dht_plc(),
+        ),
+        moved(plug_outline(POD_CLR + SOCK_W + 1, -60, 60), plug_plc()),
+    ]
+    arcs = fuse_all(
+        [
+            rot_z(sector(VENT_R0, VENT_R1, -BEZEL_T - 1, BEZEL_T + 1.5, e - s), s)
+            for s, e in vent_arcs()
+        ]
+    ).cut(fuse_all(keep_out))
+    # drop slivers (shorter than about 6 mm)
+    return [s for s in arcs.Solids if s.Volume > 6.0 * 2.0 * (BEZEL_T + 1.5)]
+
+
 def dht_bay():
-    """DHT22 bay (bay coordinates): walls + screw bosses, the cuts, boss x positions."""
+    """DHT22 bay (bay coordinates): walls + screw bosses, the cuts, the openings through the deck, boss positions."""
     x0, x1, hw = DHT_BAY
     t = BAY_WALL
-    bx = (x0 - t - BOSS_R + 1.0, x1 + t + BOSS_R - 1.0)
+    bosses = [(s * DHT_BOSS_X, -(hw + t + BOSS_R - 1.0)) for s in (-1, 1)]
     walls = fuse_all(
         [box(x0 - t, -hw - t, 0, x1 + t, hw + t, DHT_BAY_TOP)]
-        + [cyl(b, 0, 0, BOSS_R, DHT_BAY_TOP) for b in bx]
+        + [cyl(bx, by, 0, BOSS_R, DHT_BAY_TOP) for bx, by in bosses]
     )
     xb0, c, w = DHT_X_TAB - DHT_BODY_L, DHT_CLR, DHT_BODY_W / 2
     cuts = [
@@ -666,6 +758,8 @@ def dht_bay():
         box(
             xb0 - c, -w - c, DHT_Z_FACE, DHT_X_TAB + c, w + c, 0.5
         ),  # body pocket in the trim
+    ] + [cyl(bx, by, DHT_BAY_TOP - 7, M3_PILOT / 2, 8) for bx, by in bosses]
+    openings = [
         box(
             xb0 + 0.75,
             -w + 0.75,
@@ -673,18 +767,18 @@ def dht_bay():
             DHT_X_TAB - 0.75,
             w - 0.75,
             DHT_Z_FACE + 0.1,
-        ),  # grille window
-    ] + [cyl(b, 0, DHT_BAY_TOP - 7, M3_PILOT / 2, 8) for b in bx]
-    return walls, cuts, bx
+        )
+    ]  # grille window
+    return walls, cuts, openings, bosses
 
 
 def mz_bay():
     """MH-Z19B bay (bay coordinates): chamber pocket with vents, ledges for the PCB ends, screw bosses."""
     hx, hy, t = MZ_PCB_L / 2 + 0.35, MZ_CH_W / 2 + MZ_CLR, BAY_WALL
-    bx = (-(hx + t + BOSS_R - 1.0), hx + t + BOSS_R - 1.0)
+    bosses = [(s * (hx + t + BOSS_R - 1.0), 0.0) for s in (-1, 1)]
     walls = fuse_all(
         [box(-hx - t, -hy - t, 0, hx + t, hy + t, MZ_BAY_TOP)]
-        + [cyl(b, 0, 0, BOSS_R, MZ_BAY_TOP) for b in bx]
+        + [cyl(bx, by, 0, BOSS_R, MZ_BAY_TOP) for bx, by in bosses]
     )
     cx = MZ_CH_L / 2 + MZ_CLR
     cuts = [
@@ -702,20 +796,22 @@ def mz_bay():
                 MZ_Z_PCB + 0.1,
             )
         )
-    for i in range(7):  # vents under the chamber (the gas inlet faces down)
-        x = -10.5 + 3.5 * i
-        cuts.append(box(x - 0.8, -7.5, -BEZEL_T - 1, x + 0.8, 7.5, 0.1))
-    cuts += [cyl(b, 0, MZ_BAY_TOP - 8, M3_PILOT / 2, 9) for b in bx]
-    return walls, cuts, bx
+    # vents under the chamber (the gas inlet faces down)
+    openings = [
+        box(x - 0.8, -7.5, -DECK_T - 1, x + 0.8, 7.5, 0.1)
+        for x in (-10.5 + 3.5 * i for i in range(7))
+    ]
+    cuts += [cyl(bx, by, MZ_BAY_TOP - 8, M3_PILOT / 2, 9) for bx, by in bosses]
+    return walls, cuts, openings, bosses
 
 
 def esp_socket():
-    """ESP32 coordinates: column from the trim up to the antenna end of the board, with jaws that miss every part."""
+    """ESP32 coordinates: column from the deck up to the antenna end of the board, with jaws that miss every part."""
     back = -(BODY_R - WALL + 0.5 - ESP_BACK_R)  # reaches into the outer wall
     t1 = PCB_T_MAX + 0.1
     return fuse_all(
         [
-            box(-1.5, -ESP_Z0, back, PCB_W + 1.5, 0, 3.4),  # column + floor
+            box(-1.5, -ESP_LIFT - 0.5, back, PCB_W + 1.5, 0, 3.4),  # column + floor
             box(
                 -1.5, 0, back, PCB_W + 1.5, 2.5, -0.1
             ),  # back jaw (below the first header tail)
@@ -741,74 +837,109 @@ def build_body():
     bezel = fillet_where(
         bezel, 0.6, lambda a, b: abs(a.z) < 1e-6 and a.Length > BEZEL_R - 1
     )
-    disc = cyl(0, 0, 0, BODY_R, TOP_Z)
-    adds = [
-        bezel,
-        disc.cut(cyl(0, 0, -1, BODY_R - WALL, TOP_Z + 2)),
-        cyl(0, 0, 0, HUB_R, Z_BALL),
-    ]
-    cuts = [Part.makeSphere(SEAT_R, V(0, 0, Z_BALL))]
+    disc = cyl(0, 0, 0, BODY_R, HOUSING_Z)
+    adds = [bezel, disc.cut(cyl(0, 0, -1, BODY_R - WALL, HOUSING_Z + 2))]
+    cuts = []
     for a in CLAMP_ANGLES:
         p = clamp_plc(a)
-        adds.append(moved(notch_local(WALL, 0, TOP_Z), p).common(disc))
-        adds.append(moved(cyl(LID_COL[0], LID_COL[1], 0, LID_COL[2], TOP_Z), p))
-        cuts.append(moved(notch_local(0, 0, TOP_Z + 1), p))
-        cuts.append(moved(cyl(LID_COL[0], LID_COL[1], TOP_Z - 12, M3_PILOT / 2, 13), p))
-    for bay, plc in (
-        (dht_bay, bay_plc(DHT_ANGLE, DHT_DIST)),
-        (mz_bay, bay_plc(MZ_ANGLE, MZ_DIST)),
-    ):
-        walls, bcuts, _ = bay()
-        adds.append(moved(walls, plc))
-        cuts += [moved(c, plc) for c in bcuts]
-    adds.append(moved(esp_socket(), esp_plc()))
-    for a in (
-        FRICTION_ANGLES
-    ):  # M3 friction screws: bore through the hub + countersink in the trim
-        p = polar(FRICTION_R, a)
-        cuts.append(cyl(p.x, p.y, -BEZEL_T - 1, M3_BORE / 2, Z_BALL + BEZEL_T + 2))
-        cuts.append(
-            cone(
-                p.x,
-                p.y,
-                -BEZEL_T - 0.01,
-                M3_HEAD_D / 2 + 0.2,
-                M3_BORE / 2,
-                M3_HEAD_D / 2 + 0.2 - M3_BORE / 2,
+        adds.append(moved(notch_local(WALL, CH_Z0, HOUSING_Z), p).common(disc))
+        adds.append(channel_support(p).common(disc))
+        adds.append(
+            moved(cyl(0, 0, 0, M4_HEAD_D / 2 + 1.0, 4.0), p)
+        )  # stiffens the trim
+        cuts.append(moved(notch_local(0, CH_Z0, HOUSING_Z + 1), p))
+    for a in TOWER_SCREW_ANGLES:  # columns + webs to the wall for the tower screws
+
+        def foot(z0, z1, a=a):
+            web = box(0, -COL_R, z0, BODY_R - WALL + 0.5 - TOWER_SCREW_R, COL_R, z1)
+            return moved(
+                cyl(0, 0, z0, COL_R, z1 - z0).fuse(web),
+                App.Placement(polar(TOWER_SCREW_R, a), App.Rotation(V(0, 0, 1), a)),
             )
-        )
-    if INTERIOR_VENTS:  # inlet under the ESP32 sector
-        for da in (-20, -10, 0, 10, 20):
-            a = ESP_ANGLE + da
-            p0, p1 = polar(38.0, a), polar(50.0, a)
-            cuts.append(slot(p0.x, p0.y, p1.x, p1.y, -BEZEL_T - 1, BEZEL_T + 1.1, 2.0))
+
+        p = polar(TOWER_SCREW_R, a)
+        adds.append(foot(COL_Z0, HOUSING_Z))
+        adds.append(cone_support(foot, TOWER_SCREW_R - COL_R, COL_Z0))
+        cuts.append(cyl(p.x, p.y, HOUSING_Z - 12, M3_PILOT / 2, 13))
+    # DHT22 bay on the trim, grille in a window of the trim
+    walls, bcuts, bopen, _ = dht_bay()
+    adds.append(moved(walls, dht_plc()))
+    cuts += [moved(c, dht_plc()) for c in bcuts + bopen]
+    # HMMD plug socket + its opening through the trim
+    block, cavity = plug_socket()
+    adds.append(block)
+    cuts.append(cavity)
+    cuts += trim_vents()  # room air for the MH-Z19B
     body = fuse_all(adds).cut(fuse_all(cuts))
-    tubes, bores = [], []
-    for a in (
-        CLAMP_ANGLES
-    ):  # M4 guide tubes back into the channels, then the bores + countersinks
+    bores = []
+    for (
+        a
+    ) in CLAMP_ANGLES:  # M4 bores through the trim and channel support + countersinks
         p = clamp_plc(a)
-        tubes.append(
-            moved(
-                cyl(0, 0, 0, M4_BORE / 2 + TUBE_WALL, TUBE_TOP).fuse(
-                    box(NOTCH_X0 - 0.5, -1.25, 0, 0, 1.25, TUBE_TOP)
-                ),
-                p,
-            )
-        )
         bores.append(
-            moved(cyl(0, 0, -BEZEL_T - 1, M4_BORE / 2, TUBE_TOP + BEZEL_T + 2), p)
+            moved(cyl(0, 0, -BEZEL_T - 1, M4_BORE / 2, CH_Z0 + BEZEL_T + 2), p)
         )
         rc = M4_HEAD_D / 2 + 0.2
         bores.append(
             moved(cone(0, 0, -BEZEL_T - 0.01, rc, M4_BORE / 2, rc - M4_BORE / 2), p)
         )
-    body = body.fuse(tubes).cut(fuse_all(bores))
+    body = body.cut(fuse_all(bores))
     return solid(body.removeSplitter())
 
 
+def chan_mask(grow=WALL + 0.5):
+    """World: the clamp channels under the deck, grown; openings in the deck stay outside this."""
+    return fuse_all(
+        [
+            moved(notch_local(grow, HOUSING_Z - 5, DECK_Z + 1), clamp_plc(a))
+            for a in CLAMP_ANGLES
+        ]
+    )
+
+
+def build_tower():
+    """Deck (caps the clamp channels, M4 bearings, MH-Z19B bay) + wall up to the lid, ESP32 socket, lid columns."""
+    z0 = HOUSING_Z
+    shell = cyl(0, 0, z0, BODY_R, TOP_Z - z0).cut(
+        cyl(0, 0, DECK_Z, BODY_R - WALL, TOP_Z)
+    )
+    walls, bcuts, bopen, _ = mz_bay()
+    adds = [shell, moved(walls, mz_plc())]
+    cuts = [moved(c, mz_plc()) for c in bcuts]
+    openings = [moved(c, mz_plc()) for c in bopen] + [deck_slot()]
+    adds.append(
+        moved(esp_socket(), esp_plc()).common(cyl(0, 0, z0, BODY_R - 0.5, TOP_Z - z0))
+    )
+    for r, a in LID_COLS:
+        p = polar(r, a)
+        adds.append(cyl(p.x, p.y, DECK_Z - 0.01, 3.0, TOP_Z - DECK_Z + 0.01))
+        cuts.append(cyl(p.x, p.y, TOP_Z - 10, M3_PILOT / 2, 11))
+    for (
+        a
+    ) in TOWER_SCREW_ANGLES:  # countersunk from the deck top into the housing columns
+        p = polar(TOWER_SCREW_R, a)
+        rc = M3_HEAD_D / 2 + 0.2
+        cuts.append(cyl(p.x, p.y, z0 - 1, M3_BORE / 2, DECK_T + 2))
+        cuts.append(
+            cone(
+                p.x,
+                p.y,
+                DECK_Z - rc + M3_BORE / 2 + 0.01,
+                M3_BORE / 2,
+                rc,
+                rc - M3_BORE / 2,
+            )
+        )
+    for a in CLAMP_ANGLES:  # blind bearings for the M4 screw ends
+        p = clamp_plc(a).Base
+        cuts.append(cyl(p.x, p.y, z0 - 1, M4_D / 2 + 0.3, M4_BEARING + 1))
+    tower = fuse_all(adds).cut(fuse_all(cuts))
+    tower = tower.cut(fuse_all(openings).cut(chan_mask()))
+    return solid(tower.removeSplitter())
+
+
 def rail_box(u0, u1, v0, v1):
-    """HMMD ledge (ball frame): from the pocket wall to the contact strip, radome up to the antenna face."""
+    """HMMD ledge (HMMD frame): from the pocket wall to the contact strip, radome up to the antenna face."""
     x0, x1, y0, y1 = HM_X0 + u0, HM_X0 + u1, HM_Y0 + v0, HM_Y0 + v1
     if u0 <= 0:
         x0 = -PKT - 0.5
@@ -821,53 +952,60 @@ def rail_box(u0, u1, v0, v1):
     return box(x0, y0, Z_POCKET - 0.2, x1, y1, Z_HM_FRONT)
 
 
-def build_ball():
-    """Ball frame: centre at the origin, flat radome face toward -z, neck toward +z."""
-    r = BALL_R + 1
-    ball = Part.makeSphere(BALL_R, V(0, 0, 0)).cut(box(-r, -r, -r, r, r, -BALL_FACE_D))
-    ball = ball.fuse(cyl(0, 0, 0, NECK_R, NECK_TOP))
-    pocket = box(-PKT, -PKT, Z_POCKET, PKT, PKT, NECK_TOP + 1).cut(
+def build_plug(ribs=True):
+    """HMMD frame (radome face on z = 0, the way it prints): vertical walls in the world, tilted radome face, 45 deg
+    chamfer behind the face, square pocket with the HMMD ledges, open at the top for the keeper."""
+    body = plug_outline(0, -30, POD_TOP)
+    # front top edge: 45 deg chamfer that stops under the lip of the socket
+    body = body.common(halfspace(V(-1, 0, -1), V(POD_X1 - LIP_W, 0, POD_TOP)))
+    if ribs:  # crush ribs on the long sides, inside the socket once the plug is home
+        h = POD_CLR + POD_RIB
+        z0, z1 = -Z_FACE + 0.5, POD_TOP - LIP_W - 0.5
+        for dx in (-6.0, 6.0):
+            x = POD_MID + dx
+            body = body.fuse(
+                [
+                    box(x - 0.6, POD_HW - 0.01, z0, x + 0.6, POD_HW + h, z1),
+                    box(x - 0.6, -POD_HW - h, z0, x + 0.6, -POD_HW + 0.01, z1),
+                ]
+            )
+    body = moved(body, h_to_p().inverse())
+    body = body.common(box(-80, -80, 0, 80, 80, 80))  # above the radome face
+    # behind the face: 45 deg up from the face edge (prints without support)
+    body = body.common(halfspace(V(1, 0, 1), V(-POD_HW, 0, 0)))
+    pocket = box(-PKT, -PKT, Z_POCKET, PKT, PKT, 60).cut(
         fuse_all([rail_box(*q) for q in HM_RAILS.values()])
     )
-    return solid(ball.cut(pocket).removeSplitter())
+    return solid(body.cut(pocket).removeSplitter())
 
 
 def build_keeper(ribs=True):
-    """Ball frame: square tube on the HMMD back (clear of every part, open over J2) + cap on the neck, wire exit."""
-    zb = Z_HM_FRONT + HM_T_MAX + 0.1
+    """HMMD frame: square tube on the HMMD back (clear of every part, open over J2) + cap on the plug top, with a
+    slot over J2 for the leads."""
+    zb = KEEPER_Z0
     o = PKT - KEEPER_CLR
     i = o - KEEPER_WALL
-    tube = box(-o, -o, zb, o, o, NECK_TOP).cut(box(-i, -i, zb - 1, i, i, NECK_TOP + 1))
-    # the J2 header + jumper housings stay outside the keeper
-    xj = HM_X0 + HM_PIN_X + HDR_W / 2 + 0.3
-    tube = tube.cut(box(-o - 1, HM_Y0 + 6.0, zb - 1, xj, o + 1, NECK_TOP + 1))
-    parts = [tube, cyl(0, 0, NECK_TOP, NECK_R - 0.4, CAP_T)]
+    ph = h_to_p().inverse()
+    tube = box(-o, -o, zb, o, o, 60).cut(box(-i, -i, zb - 1, i, i, 61))
+    tube = tube.common(
+        moved(box(-80, -80, -80, 80, 80, POD_TOP), ph)
+    )  # to the plug top
+    cap = plug_outline(-0.4, POD_TOP, POD_TOP + CAP_T).common(
+        box(-80, -80, POD_TOP - 1, POD_X1 - LIP_W - 0.4, 80, POD_TOP + CAP_T + 1)
+    )  # clear of the socket lip
+    parts = [tube, moved(cap, ph)]
     if ribs:  # crush ribs: 0.15 mm interference, so the keeper stays in when the unit is upside down
         h = KEEPER_CLR + 0.15
+        z0, z1 = zb + 1.5, zb + 5.0
         parts += [
-            box(o - 0.01, -0.5, NECK_TOP - 8, o + h, 0.5, NECK_TOP),
-            box(1.5, o - 0.01, NECK_TOP - 8, 2.5, o + h, NECK_TOP),
-            box(1.5, -o - h, NECK_TOP - 8, 2.5, -o + 0.01, NECK_TOP),
+            box(-o - h, -8.0, z0, -o + 0.01, -7.0, z1),
+            box(1.5, o - 0.01, z0, 2.5, o + h, z1),
+            box(1.5, -o - h, z0, 2.5, -o + 0.01, z1),
         ]
-    keeper = fuse_all(parts).cut(
-        box(-o - 1, HM_Y0 + 6.0, NECK_TOP - 1, HM_X0 + 5.0, o, NECK_TOP + CAP_T + 1)
-    )
+    # the J2 leads stay outside the keeper and leave through the cap
+    xj = HM_X0 + HM_PIN_X + HDR_W / 2 + 0.3
+    keeper = fuse_all(parts).cut(box(-o - 1, HM_Y0 + 6.0, zb - 1, xj, o + 1, 80))
     return solid(keeper.removeSplitter())
-
-
-def build_retainer():
-    ring = cyl(0, 0, Z_RET0, HUB_R, Z_RET1 - Z_RET0).cut(
-        Part.makeSphere(SEAT_R, V(0, 0, Z_BALL))
-    )
-    for a in FRICTION_ANGLES:
-        p = polar(FRICTION_R, a)
-        ring = ring.cut(cyl(p.x, p.y, Z_RET0 - 1, M3_BORE / 2, Z_RET1 - Z_RET0 + 2))
-        ring = ring.cut(
-            hexagon(
-                p.x, p.y, Z_RET1 - NUT3_H - 0.2, NUT3_AF + 0.3, NUT3_H + 1, rot=a + 30
-            )
-        )
-    return solid(ring.removeSplitter())
 
 
 def build_arm():
@@ -901,13 +1039,9 @@ def build_lid():
     lid = cyl(0, 0, z0, BODY_R, LID_T)
     lid = fillet_where(lid, 1.0, lambda a, b: abs(a.z - z0 - LID_T) < 1e-6)
     cuts = []
-    for a in CLAMP_ANGLES:
-        p = clamp_plc(a)
-        # top bearing of the M4 screw, then the lid screw
-        cuts.append(moved(cyl(0, 0, z0 - 1, M4_D / 2 + 0.3, LID_T + 2), p))
-        cuts.append(
-            moved(cyl(LID_COL[0], LID_COL[1], z0 - 1, M3_BORE / 2, LID_T + 2), p)
-        )
+    for r, a in LID_COLS:
+        p = polar(r, a)
+        cuts.append(cyl(p.x, p.y, z0 - 1, M3_BORE / 2, LID_T + 2))
     c = usb_center()
     ut = polar(1, ESP_ANGLE + 90)
     # receptacle at any PCB thickness: rounded rectangle (round ends would catch its corners)
@@ -929,11 +1063,11 @@ def build_lid():
         )
     )
     if INTERIOR_VENTS:
-        for da in (-30, -20, 20, 30):
-            p0, p1 = polar(30.0, ESP_ANGLE + da), polar(44.0, ESP_ANGLE + da)
+        for da in (-32, -22, 22, 32):
+            p0, p1 = polar(12.0, ESP_ANGLE + da), polar(24.0, ESP_ANGLE + da)
             cuts.append(slot(p0.x, p0.y, p1.x, p1.y, z0 - 1, LID_T + 2, 2.0))
     if WIRE_HOLE_D > 0:
-        p = polar(40.0, ESP_ANGLE)
+        p = polar(17.0, ESP_ANGLE)
         cuts.append(cyl(p.x, p.y, z0 - 1, WIRE_HOLE_D / 2, LID_T + 2))
     return solid(lid.cut(fuse_all(cuts)).removeSplitter())
 
@@ -941,25 +1075,27 @@ def build_lid():
 def build_dht_lid():
     x0, x1, hw = DHT_BAY
     t, z = BAY_WALL, DHT_BAY_TOP
-    _, _, bx = dht_bay()
+    bosses = dht_bay()[3]
     lid = fuse_all(
         [box(x0 - t, -hw - t, z, x1 + t, hw + t, z + 2.0)]
-        + [cyl(b, 0, z, BOSS_R, 2.0) for b in bx]
+        + [cyl(bx, by, z, BOSS_R, 2.0) for bx, by in bosses]
     )
-    cuts = [cyl(b, 0, z - 1, M3_BORE / 2, 4) for b in bx] + [
+    cuts = [cyl(bx, by, z - 1, M3_BORE / 2, 4) for bx, by in bosses] + [
         box(x0, -hw + 1.5, z - 1, x0 + 5.5, hw - 1.5, z + 3)
     ]  # wires
+    # the bay corners run into the tower wall; the lid stops short of it (axis at y = DHT_DIST)
+    lid = lid.common(cyl(0, DHT_DIST, z - 1, BODY_R - WALL - 0.3, 4))
     return solid(lid.cut(fuse_all(cuts)).removeSplitter())
 
 
 def build_mz_frame():
     hx, hy, t, z = MZ_PCB_L / 2 + 0.35, MZ_CH_W / 2 + MZ_CLR, BAY_WALL, MZ_BAY_TOP
-    _, _, bx = mz_bay()
+    bosses = mz_bay()[3]
     frame = fuse_all(
         [box(-hx - t, -hy - t, z, hx + t, hy + t, z + 2.0)]
-        + [cyl(b, 0, z, BOSS_R, 2.0) for b in bx]
+        + [cyl(bx, by, z, BOSS_R, 2.0) for bx, by in bosses]
     )
-    cuts = [cyl(b, 0, z - 1, M3_BORE / 2, 4) for b in bx]
+    cuts = [cyl(bx, by, z - 1, M3_BORE / 2, 4) for bx, by in bosses]
     cuts += [
         box(s * MZ_PIN_X - 2.1, -hy + 0.6, z - 1, s * MZ_PIN_X + 2.1, hy - 0.6, z + 3)
         for s in (-1, 1)
@@ -968,7 +1104,8 @@ def build_mz_frame():
 
 
 def build_ceiling(t=CEIL_T):
-    return box(-110, -110, 0, 110, 110, t).cut(cyl(0, 0, -1, HOLE_R, t + 2))
+    s = BEZEL_R + 20
+    return box(-s, -s, 0, s, s, t).cut(cyl(0, 0, -1, HOLE_R, t + 2))
 
 
 def build_hardware(arm_z=CEIL_T):
@@ -994,22 +1131,15 @@ def build_hardware(arm_z=CEIL_T):
             (0.75, 0.75, 0.78),
         )
     k3 = (M3_HEAD_D - M3_D) / 2
-    for i, a in enumerate(FRICTION_ANGLES):
-        q = polar(FRICTION_R, a)
-        scr = cone(q.x, q.y, -BEZEL_T, M3_HEAD_D / 2, M3_D / 2, k3).fuse(
-            cyl(q.x, q.y, -BEZEL_T + k3 - 0.01, M3_D / 2, 20 - k3)
+    for i, a in enumerate(TOWER_SCREW_ANGLES):  # head flush with the deck top
+        q = polar(TOWER_SCREW_R, a)
+        # shank at the thread core: the thread cuts into the 2.6 mm pilot by design
+        scr = cone(q.x, q.y, DECK_Z - k3, M3_D / 2, M3_HEAD_D / 2, k3).fuse(
+            cyl(q.x, q.y, DECK_Z - 12, M3_PILOT / 2, 12 - k3 + 0.01)
         )
-        parts["M3_%d" % i] = (
-            "M3 x 20 countersunk (gimbal friction %d)" % (i + 1),
+        parts["M3tower_%d" % i] = (
+            "M3 x 12 countersunk (tower to housing %d)" % (i + 1),
             scr,
-            (0.75, 0.75, 0.78),
-        )
-        nut = hexagon(q.x, q.y, Z_RET1 - NUT3_H - 0.2, NUT3_AF, NUT3_H, rot=a + 30).cut(
-            cyl(q.x, q.y, Z_RET0, M3_D / 2, 20)
-        )
-        parts["M3nut_%d" % i] = (
-            "M3 nut (gimbal friction %d)" % (i + 1),
-            nut,
             (0.75, 0.75, 0.78),
         )
     return parts
@@ -1019,9 +1149,15 @@ def build_hardware(arm_z=CEIL_T):
 SPECS = [
     (
         "Ceiling",
-        "hole radius %g mm, ceiling %g mm thick, open space above; clamps grip %g-%g mm"
-        % (HOLE_R, CEIL_T, CEIL_T_MIN, CEIL_T_MAX),
+        "hole %g mm across (R %g), ceiling %g mm thick, open space above; clamps grip %g-%g mm"
+        % (2 * HOLE_R, HOLE_R, CEIL_T, CEIL_T_MIN, CEIL_T_MAX),
         "user spec",
+    ),
+    (
+        "Size",
+        "trim %g mm across; housing + sensor tower %g mm across, %.1f mm from the trim face to the lid top"
+        % (2 * BEZEL_R, 2 * BODY_R, BEZEL_T + TOP_Z + LID_T),
+        "design result",
     ),
     (
         "Clamps",
@@ -1029,19 +1165,19 @@ SPECS = [
         "design choice",
     ),
     (
-        "Gimbal",
-        "ball %g mm, flat radome face %.1f mm across; tilt %g deg in any direction (neck hits the retainer)"
-        % (2 * BALL_R, 2 * BALL_FACE_R, TILT_MAX),
+        "Room air",
+        "slots in the trim by the wall feed the space under the deck, where the MH-Z19B vents open; the DHT22 has its own window in the trim",
         "design choice",
     ),
     (
-        "Gimbal friction",
-        "3 x M3 x 20 countersunk from the room side into M3 nuts in the retainer ring; tighten until the ball holds its aim",
-        "design choice",
+        "HMMD mount",
+        "fixed plug, radome face tilted %g deg (toward %g deg); turn the unit in the hole to aim it; pushed in from the room side, crush ribs"
+        % (POD_TILT, POD_LOOK),
+        "user spec + design choice",
     ),
     (
         "Other screws",
-        "2 x M3 x 8 per bay lid (DHT22, MH-Z19B), 3 x M3 x 10 for the top lid - all into 2.6 mm pilot holes",
+        "3 x M3 x 12 countersunk tower -> housing, 2 x M3 x 8 per bay lid (DHT22, MH-Z19B), 3 x M3 x 10 for the top lid - all into 2.6 mm pilot holes",
         "design choice",
     ),
     (
@@ -1050,13 +1186,18 @@ SPECS = [
         "datasheet + illustration",
     ),
     (
+        "Wiring",
+        "no headers or DuPont plugs: leads soldered straight into the ESP32 and HMMD pin holes and onto the DHT22 / MH-Z19B pins",
+        "user choice",
+    ),
+    (
         "HMMD",
-        "Waveshare HMMD (S3KM1110, 24 GHz) 20 x 20 mm, J2 header on the back; radome 0.8 mm, antenna gap 6.2 mm (half wavelength)",
+        "Waveshare HMMD (S3KM1110, 24 GHz) 20 x 20 mm, J2 pads on the back; radome 0.8 mm, antenna gap 6.2 mm (half wavelength)",
         "Waveshare wiki + radome guide",
     ),
     (
         "HMMD thickness",
-        "NOT published. Modelled 1.0; ball checked for 0.8-1.6 mm",
+        "NOT published. Modelled 1.0; plug checked for 0.8-1.6 mm",
         "assumption - measure yours",
     ),
     (
@@ -1066,7 +1207,7 @@ SPECS = [
     ),
     (
         "DHT22 fit",
-        "grille flush in a 13.6 x 23.6 mm window of the trim (0.6 mm lip); body 7.4-8.0 mm checked",
+        "grille flush in a 13.6 x 23.6 mm window of the trim (0.6 mm lip), beside the HMMD plug; body 7.4-8.0 mm checked",
         "design choice",
     ),
     (
@@ -1086,7 +1227,7 @@ SPECS = [
     ),
     (
         "Print",
-        "housing trim-down, ball face-down (smooth bed for the radome), retainer and keeper upside down, lid/arms/bay lids flat",
+        "housing trim-down, tower deck-down, HMMD plug radome face-down (smooth bed), keeper cap-down, lid/arms/bay lids flat",
         "design choice",
     ),
 ]
@@ -1122,9 +1263,9 @@ def module_parts():
     out = {}
     for grp, builder, plc in (
         ("ESP32", build_esp32, esp_plc()),
-        ("HMMD", build_hmmd, ball_plc()),
-        ("DHT22", build_dht, bay_plc(DHT_ANGLE, DHT_DIST)),
-        ("MHZ19B", build_mz, bay_plc(MZ_ANGLE, MZ_DIST)),
+        ("HMMD", build_hmmd, hm_plc()),
+        ("DHT22", build_dht, dht_plc()),
+        ("MHZ19B", build_mz, mz_plc()),
     ):
         out[grp] = {
             k: (lab, moved(s, plc), rgb) for k, (lab, s, rgb) in builder().items()
@@ -1140,34 +1281,39 @@ def build():
     arm = build_arm()
     case = {
         "Body": (
-            "Housing: trim + socket hub + clamp channels + bays",
+            "Housing: trim + HMMD plug socket + DHT22 bay + clamp channels",
             build_body(),
             (0.93, 0.93, 0.92),
             0,
         ),
-        "Ball": (
-            "Gimbal ball (HMMD inside, radome face)",
-            build_ball(),
+        "Tower": (
+            "Sensor tower: deck + MH-Z19B bay + ESP32 socket",
+            build_tower(),
+            (0.85, 0.88, 0.93),
+            0,
+        ),
+        "Plug": (
+            "HMMD plug (radome face tilted %g deg)" % POD_TILT,
+            build_plug(),
             (0.97, 0.97, 0.97),
             0,
         ),
-        "Keeper": ("HMMD keeper + neck cap", build_keeper(), (0.30, 0.60, 0.90), 0),
-        "Retainer": ("Gimbal retainer ring", build_retainer(), (0.30, 0.60, 0.90), 0),
+        "Keeper": ("HMMD keeper + cap", build_keeper(), (0.30, 0.60, 0.90), 0),
         "Lid": (
-            "Top lid (USB-C slot, clamp screw bearings)",
+            "Top lid (USB-C slot, power cable hole)",
             build_lid(),
             (0.30, 0.60, 0.90),
             55,
         ),
         "DHT_Lid": (
             "DHT22 bay lid",
-            moved(build_dht_lid(), bay_plc(DHT_ANGLE, DHT_DIST)),
+            moved(build_dht_lid(), dht_plc()),
             (0.30, 0.60, 0.90),
             0,
         ),
         "MZ_Frame": (
             "MH-Z19B bay frame",
-            moved(build_mz_frame(), bay_plc(MZ_ANGLE, MZ_DIST)),
+            moved(build_mz_frame(), mz_plc()),
             (0.30, 0.60, 0.90),
             0,
         ),
@@ -1180,28 +1326,19 @@ def build():
             0,
         )
     world = dict(case)
-    for k in ("Ball", "Keeper"):  # ball frame -> world
+    for k in ("Plug", "Keeper"):  # HMMD frame -> world
         lab, s, rgb, tr = case[k]
-        world[k] = (lab, moved(s, ball_plc()), rgb, tr)
-    shown = dict(world)
-    for k in ("Ball", "Keeper"):
-        lab, s, rgb, tr = case[k]
-        shown[k] = (lab, moved(s, ball_plc(*SHOW_TILT)), rgb, tr)
-    for k, (lab, s, rgb, tr) in shown.items():
+        world[k] = (lab, moved(s, hm_plc()), rgb, tr)
+    for k, (lab, s, rgb, tr) in world.items():
         new_part(doc, "Case_" + k, lab, s, rgb, transparency=tr)
     refs = module_parts()
-    if SHOW_TILT[1]:
-        refs["HMMD"] = {
-            k: (lab, moved(s, ball_plc(*SHOW_TILT)), rgb)
-            for k, (lab, s, rgb) in build_hmmd().items()
-        }
     for grp, parts in refs.items():
         g = doc.addObject("App::DocumentObjectGroup", grp + "_Reference")
         g.Label = grp + " - reference model"
         for k, (lab, s, rgb) in parts.items():
             new_part(doc, grp + "_" + k, lab, s, rgb, group=g)
     g = doc.addObject("App::DocumentObjectGroup", "Ceiling_Reference")
-    g.Label = "Ceiling - reference (%g mm, hole R%g)" % (CEIL_T, HOLE_R)
+    g.Label = "Ceiling - reference (%g mm, hole %g mm)" % (CEIL_T, 2 * HOLE_R)
     new_part(
         doc,
         "Ceiling",
@@ -1221,7 +1358,7 @@ def max_radius(shape, n=36):
 
 
 def verify(world, arm):
-    """Numeric checks: overlaps, thickness sweeps, clamp swing / reach / stops, gimbal tilt / stop, radome, openings."""
+    """Numeric checks: overlaps, thickness sweeps, clamp swing / reach / stops, HMMD plug fit, radome, openings."""
     fails = []
 
     def check(ok, msg):
@@ -1231,18 +1368,24 @@ def verify(world, arm):
     def inside(shape, p):
         return shape.isInside(p, 1e-6, False)
 
-    body, lid, ret = world["Body"], world["Lid"], world["Retainer"]
+    body, lid, tower = world["Body"], world["Lid"], world["Tower"]
     case = dict(world)
-    # the keeper's crush ribs are measured on their own
-    case["Keeper"] = moved(build_keeper(ribs=False), ball_plc())
+    # the crush ribs of the keeper and the plug are measured on their own
+    case["Keeper"] = moved(build_keeper(ribs=False), hm_plc())
+    case["Plug"] = moved(build_plug(ribs=False), hm_plc())
     names = list(case)
     for i, a in enumerate(names):
         for b in names[i + 1 :]:
             v = ovl(case[a], case[b])
             check(v < 1e-4, "%s and %s overlap (%.4f mm3)" % (a, b, v))
-    rib = ovl(world["Keeper"], world["Ball"])
-    print("keeper crush ribs: %.2f mm3 interference with the ball (by design)" % rib)
+    rib = ovl(world["Keeper"], case["Plug"])
+    rib2 = ovl(world["Plug"], body)
+    print(
+        "crush ribs (by design): keeper in the plug %.2f mm3, plug in its socket %.2f mm3"
+        % (rib, rib2)
+    )
     check(0.5 < rib < 10, "keeper crush ribs missing or too big")
+    check(0.5 < rib2 < 10, "plug crush ribs missing or too big")
 
     refs = module_parts()
     for grp, parts in refs.items():
@@ -1273,37 +1416,37 @@ def verify(world, arm):
     print("ESP32 PCB thickness sweep (upright, USB-C in the lid):")
     for t in (PCB_T_MIN, 1.2, 1.4, PCB_T_MAX):
         parts = {k: moved(s, esp_plc()) for k, (_, s, _) in build_esp32(t).items()}
-        v = sum(ovl(body, s) + ovl(lid, s) for s in parts.values())
+        v = sum(ovl(tower, s) + ovl(lid, s) for s in parts.values())
         usb = parts["USB_C"]
         tip = usb.BoundBox.ZMax
         print(
-            "  T=%.1f overlap=%.4f | USB-C to lid %.2f, to housing %.2f | receptacle tip %.2f below the lid top"
+            "  T=%.1f overlap=%.4f | USB-C to lid %.2f, to tower %.2f | receptacle tip %.2f below the lid top"
             % (
                 t,
                 v,
                 usb.distToShape(lid)[0],
-                usb.distToShape(body)[0],
+                usb.distToShape(tower)[0],
                 TOP_Z + LID_T - tip,
             )
         )
         check(v < 1e-4, "ESP32 interference at PCB thickness %.1f" % t)
-    ball0, keep0 = build_ball(), build_keeper(ribs=False)
-    print("HMMD PCB thickness sweep (in the ball):")
+    plug0, keep0 = build_plug(ribs=False), build_keeper(ribs=False)
+    print("HMMD PCB thickness sweep (in the plug):")
     for t in (HM_T_MIN, HM_T, 1.2, HM_T_MAX):
-        v = sum(ovl(ball0, s) + ovl(keep0, s) for _, s, _ in build_hmmd(t).values())
+        v = sum(ovl(plug0, s) + ovl(keep0, s) for _, s, _ in build_hmmd(t).values())
         print(
             "  T=%.1f overlap=%.4f | board can lift %.2f mm before the keeper"
             % (t, v, HM_T_MAX + 0.1 - t)
         )
         check(v < 1e-4, "HMMD interference at PCB thickness %.1f" % t)
-    dp = bay_plc(DHT_ANGLE, DHT_DIST)
+    dp = dht_plc()
     print("DHT22 body thickness sweep (grille in the trim window):")
     for bt in (DHT_BODY_T_MIN, DHT_BODY_T, DHT_BODY_T_MAX):
-        parts = [moved(s, dp) for _, s, _ in build_dht(bt).values()]
-        v = sum(ovl(body, s) + ovl(world["DHT_Lid"], s) for s in parts)
-        top = max(s.BoundBox.ZMax for s in parts)
+        parts = {k: moved(s, dp) for k, (_, s, _) in build_dht(bt).items()}
+        v = sum(ovl(body, s) + ovl(world["DHT_Lid"], s) for s in parts.values())
+        top = max(s.BoundBox.ZMax for k, s in parts.items() if k != "Wires")
         print(
-            "  T=%.1f overlap=%.4f | module top %.2f, bay lid at %.2f"
+            "  T=%.1f overlap=%.4f | module top %.2f above the trim, bay lid at %.2f"
             % (bt, v, top, DHT_BAY_TOP)
         )
         check(v < 1e-4, "DHT22 interference at body thickness %.1f" % bt)
@@ -1311,12 +1454,12 @@ def verify(world, arm):
     # ---- swing clamps
     for i, a in enumerate(CLAMP_ANGLES):
         near = body.common(
-            moved(box(-16, -36, -BEZEL_T - 1, 36, 22, TOP_Z + 1), clamp_plc(a))
+            moved(box(-16, -36, -BEZEL_T - 1, 36, 22, HOUSING_Z + 1), clamp_plc(a))
         )
         for z in (CEIL_T_MIN, CEIL_T, CEIL_T_MAX, ARM_PARK_Z):
             for sw in (-90, -60, -30, 0):
                 s = arm_at(arm, a, sw, z)
-                v = ovl(near, s) + ovl(lid, s)
+                v = ovl(near, s) + ovl(tower, s)
                 check(
                     v < 1e-4,
                     "arm %d hits the housing at swing %g, z %g (%.3f)"
@@ -1341,53 +1484,58 @@ def verify(world, arm):
         % (rt, HOLE_R, ro, ro - HOLE_R)
     )
     print(
-        "M4 screw end z=%.2f in the lid bearing (%.1f..%.1f); parked nyloc top %.2f; travel park->%g mm ceiling %.1f mm"
-        % (end, TOP_Z, TOP_Z + LID_T, nut_top, CEIL_T, ARM_PARK_Z - CEIL_T)
+        "M4 screw end z=%.2f in the deck bearing (%.1f..%.1f); parked nyloc top %.2f; travel park->%g mm ceiling %.1f mm"
+        % (end, HOUSING_Z, HOUSING_Z + M4_BEARING, nut_top, CEIL_T, ARM_PARK_Z - CEIL_T)
     )
     check(rt <= HOLE_R - 1.0, "tucked-in arms do not pass through the hole")
-    check(ro - HOLE_R >= 10.0, "arms grip less than 10 mm of the ceiling")
-    check(end >= nut_top + 1.0, "M4 screw too short for a parked arm")
-    check(TOP_Z < end <= TOP_Z + LID_T, "M4 screw end not in the lid bearing")
     check(
-        max_radius(body.common(cyl(0, 0, 0.1, 100, TOP_Z))) <= HOLE_R - 0.9,
-        "housing too big for the hole",
+        ro - HOLE_R >= ARM_GRIP_MIN,
+        "arms grip less than %g mm of the ceiling" % ARM_GRIP_MIN,
     )
+    check(end >= nut_top + 1.0, "M4 screw too short for a parked arm")
+    check(
+        HOUSING_Z < end <= HOUSING_Z + M4_BEARING - 0.3,
+        "M4 screw end not in the deck bearing",
+    )
+    for k, s in (("housing", body), ("tower", tower), ("lid", lid)):
+        check(
+            max_radius(s.common(cyl(0, 0, 0.1, 100, TOP_Z + LID_T))) <= HOLE_R - 0.9,
+            "%s too big for the hole" % k,
+        )
 
-    # ---- gimbal
-    near = body.common(cyl(0, 0, -BEZEL_T - 1, HUB_R + 6, TOP_Z))
-    asm = Part.makeCompound([ball0, keep0] + [s for _, s, _ in build_hmmd().values()])
-    stops = []
-    for d in range(0, 360, 45):
-        for t in (12.0, TILT_MAX - 1.0):
-            s = moved(asm, ball_plc(d, t))
-            v = ovl(near, s) + ovl(ret, s)
-            check(
-                v < 1e-4, "ball hits the socket at %g deg toward %d (%.3f)" % (t, d, v)
-            )
-        stops.append(ovl(ret, moved(ball0, ball_plc(d, TILT_MAX + 2.0))))
-    check(min(stops) > 1e-3, "no tilt stop in some direction")
-    t = TILT_MAX * D2R
-    z_edge = Z_BALL - BALL_FACE_D * math.cos(t) + BALL_FACE_R * math.sin(t)
-    r_rim = SEAT_R * math.sin(SEAT_RIM_ANG * D2R)
-    # ball centre when pressed onto the rim; retainer travel until its rim touches it
-    h = -BEZEL_T + math.sqrt(BALL_R**2 - r_rim**2)
-    r_top = SEAT_R * math.sin(RET_TOP_ANG * D2R)
-    reach = Z_RET1 - h - math.sqrt(BALL_R**2 - r_top**2)
-    print(
-        "gimbal: tilt %g deg ok, stop at <= %g deg in 8 directions | radome edge at full tilt %.2f below the trim face"
-        % (TILT_MAX - 1, TILT_MAX + 2, -BEZEL_T - z_edge)
+    # ---- HMMD plug: goes in from the room side, stops at the lip, radome face clear of the trim
+    asm = moved(
+        Part.makeCompound([plug0, keep0] + [s for _, s, _ in build_hmmd().values()]),
+        hm_plc(),
     )
+    for dz in (2.0, 6.0, 12.0, 20.0, 30.0):  # pulled straight out, down into the room
+        v = ovl(body, moved(asm, App.Placement(V(0, 0, -dz), App.Rotation())))
+        check(v < 1e-4, "plug cannot come out %g mm into the room (%.3f)" % (dz, v))
+    stop = ovl(body, moved(asm, App.Placement(V(0, 0, 0.5), App.Rotation())))
+    check(stop > 1e-3, "no stop above the plug")
+    bb = moved(plug0, hm_plc()).BoundBox
+    edge = Z_FACE + POD_X1 * S_T / C_T
     print(
-        "socket lip %.2f mm under the ball; pressed ball sits %.2f low; retainer touches it after %.2f of its %.2f gap"
-        % (BALL_R - r_rim, Z_BALL - h, reach, RET_GAP)
+        "HMMD plug: radome face %g deg toward %g deg, high edge %.2f under the trim face; sticks out %.1f mm"
+        % (POD_TILT, POD_LOOK, -BEZEL_T - edge, -BEZEL_T - bb.ZMin)
     )
-    print(
-        "ball face %.1f mm below the trim face (untilted)"
-        % (-BEZEL_T - (Z_BALL - BALL_FACE_D))
-    )
-    check(z_edge < -BEZEL_T - 0.3, "radome edge enters the socket at full tilt")
-    check(BALL_R - r_rim >= 1.0, "socket lip too small to hold the ball")
-    check(0.2 < reach < RET_GAP - 0.2, "retainer cannot preload the ball")
+    check(edge <= -BEZEL_T - 0.3, "radome face edge not below the trim face")
+    # field of view: rays from the face centre, 60 deg off the face normal (sideways and toward the look direction)
+    look = polar(1, POD_LOOK)
+    c = hm_plc().multVec(V(0, 0, 0))
+    nrm = V(look.x * S_T, look.y * S_T, -C_T)  # outward face normal
+    side = polar(1, POD_LOOK + 90)
+    for k, d in (
+        (
+            "toward the tilt",
+            look * math.sin((60 + POD_TILT) * D2R)
+            + V(0, 0, -math.cos((60 + POD_TILT) * D2R)),
+        ),
+        ("sideways", nrm * math.cos(60 * D2R) + side * math.sin(60 * D2R)),
+        ("other side", nrm * math.cos(60 * D2R) - side * math.sin(60 * D2R)),
+    ):
+        ray = Part.makeCylinder(0.3, 80, c + d * 1.0, d)
+        check(ovl(body, ray) < 1e-4, "housing in the HMMD view %s" % k)
 
     bad = n = 0
     for iu in range(3, 18, 2):
@@ -1400,10 +1548,10 @@ def verify(world, arm):
                 continue
             n += 1
             x, y = HM_X0 + u, HM_Y0 + v
-            ok = inside(ball0, V(x, y, -BALL_FACE_D + 0.05)) and inside(
-                ball0, V(x, y, Z_POCKET - 0.05)
+            ok = inside(plug0, V(x, y, 0.05)) and inside(
+                plug0, V(x, y, Z_POCKET - 0.05)
             )
-            bad += 0 if ok and not inside(ball0, V(x, y, Z_POCKET + 0.05)) else 1
+            bad += 0 if ok and not inside(plug0, V(x, y, Z_POCKET + 0.05)) else 1
     print(
         "radome: %d sample points, %d off (floor %.2f mm, air gap %.2f mm)"
         % (n, bad, RADOME_T, HM_H)
@@ -1412,7 +1560,7 @@ def verify(world, arm):
     for k, (u0, u1, v0, v1) in HM_RAILS.items():
         c = V(HM_X0 + (u0 + u1) / 2, HM_Y0 + (v0 + v1) / 2, Z_HM_FRONT)
         check(
-            inside(ball0, c - V(0, 0, 0.05)) and not inside(ball0, c + V(0, 0, 0.05)),
+            inside(plug0, c - V(0, 0, 0.05)) and not inside(plug0, c + V(0, 0, 0.05)),
             "ledge %s wrong" % k,
         )
     for k, (u0, u1, v0, v1) in HM_PATCHES.items():
@@ -1426,8 +1574,8 @@ def verify(world, arm):
             Z_HM_FRONT,
         )
         check(
-            ovl(ball0, kb) < 1e-6,
-            "ball material within %.1f mm of antenna patch %s" % (m, k),
+            ovl(plug0, kb) < 1e-6,
+            "plug material within %.1f mm of antenna patch %s" % (m, k),
         )
 
     # ---- openings
@@ -1442,9 +1590,37 @@ def verify(world, arm):
         "DHT22 window lip missing",
     )
     check(
-        not inside(body, bay_plc(MZ_ANGLE, MZ_DIST).multVec(V(0, 0, -BEZEL_T + 0.5))),
+        not inside(tower, mz_plc().multVec(V(0, 0, -DECK_T + 0.5))),
         "MH-Z19B vents missing",
     )
+    # deck openings over a clamp channel stay closed: how much is left open
+    slab = cyl(0, 0, HOUSING_Z + 0.1, BODY_R, 0.3)
+    full = fuse_all([moved(c, mz_plc()) for c in mz_bay()[2]]).common(slab)
+    frac = full.cut(tower).Volume / full.Volume
+    print("MH-Z19B vents: %.0f%% open to the plenum" % (100 * frac))
+    check(frac > 0.6, "MH-Z19B vents mostly over a clamp channel")
+    x0, y0, x1, y1, _ = DECK_SLOT
+    check(
+        not inside(tower, V((x0 + x1) / 2, (y0 + y1) / 2, HOUSING_Z + 1.5)),
+        "deck slot missing",
+    )
+    vents = trim_vents()
+    area = sum(s.Volume for s in vents) / (BEZEL_T + 1.5)
+    print("trim vents: %d slots, %.0f mm2" % (len(vents), area))
+    check(len(vents) >= 4 and area > 80, "too few trim vents")
+    for s in vents[:1]:
+        check(not inside(body, s.CenterOfMass), "trim vents missing")
+    for a in TOWER_SCREW_ANGLES:
+        p = polar(TOWER_SCREW_R, a)
+        check(
+            ovl(tower, cyl(p.x, p.y, DECK_Z + 0.05, M3_HEAD_D / 2 + 0.6, 10)) < 1e-4,
+            "no screwdriver access to the tower screw at %g" % a,
+        )
+        check(
+            inside(body, V(p.x, p.y, HOUSING_Z - 13))
+            and not inside(body, V(p.x, p.y, HOUSING_Z - 1)),
+            "no pilot hole for the tower screw at %g" % a,
+        )
     u = usb_center()
     ut = polar(1, ESP_ANGLE + 90)
     check(not inside(lid, V(u.x, u.y, TOP_Z + 0.5)), "USB-C slot missing")
@@ -1455,19 +1631,13 @@ def verify(world, arm):
     for a in CLAMP_ANGLES:
         p = clamp_plc(a).Base
         check(
-            not inside(lid, V(p.x, p.y, TOP_Z + 1)),
-            "no lid bearing over clamp screw at %g" % a,
+            not inside(tower, V(p.x, p.y, HOUSING_Z + 1))
+            and inside(tower, V(p.x, p.y, HOUSING_Z + M4_BEARING + 0.3)),
+            "no blind deck bearing over clamp screw at %g" % a,
         )
         check(
             not inside(body, V(p.x, p.y, -BEZEL_T + 0.5)),
             "no countersink at clamp %g" % a,
-        )
-    for a in FRICTION_ANGLES:
-        p = polar(FRICTION_R, a)
-        check(
-            not inside(body, V(p.x, p.y, 3.0))
-            and not inside(ret, V(p.x, p.y, Z_RET0 + 1)),
-            "friction screw path blocked",
         )
 
     for k, s in world.items():
@@ -1475,9 +1645,9 @@ def verify(world, arm):
     print("printed parts (bounding box, mm):")
     for k in (
         "Body",
-        "Ball",
+        "Tower",
+        "Plug",
         "Keeper",
-        "Retainer",
         "Lid",
         "DHT_Lid",
         "MZ_Frame",
@@ -1503,9 +1673,9 @@ def export_stl():
     flip = App.Placement(V(0, 0, 0), App.Rotation(V(1, 0, 0), 180))
     parts = {
         "housing": build_body(),  # trim face down
-        "gimbal_ball": build_ball(),  # radome face down, smooth bed
-        "hmmd_keeper": moved(build_keeper(), flip),  # cap down
-        "gimbal_retainer": moved(build_retainer(), flip),  # top face down
+        "sensor_tower": build_tower(),  # deck down
+        "hmmd_plug": build_plug(),  # radome face down, smooth bed
+        "hmmd_keeper": moved(moved(build_keeper(), h_to_p()), flip),  # cap down
         "top_lid": build_lid(),  # underside down
         "dht22_bay_lid": build_dht_lid(),
         "mhz19b_bay_frame": build_mz_frame(),
