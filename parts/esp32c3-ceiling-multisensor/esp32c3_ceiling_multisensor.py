@@ -5,23 +5,25 @@ Run inside FreeCAD:
 or headless:
     freecadcmd /Users/antek/projektowanie/parts/esp32c3-ceiling-multisensor/esp32c3_ceiling_multisensor.py
 
-Frame (mm): origin on the hole axis at the UNDERSIDE of the ceiling, +Z up into the ceiling. The trim (bezel) sits on
-the room side (z = -BEZEL_T..0) and covers the edge of the hole; the housing fills the hole and the sensor tower on top
-of it stands up into the open space above the ceiling. Edit a parameter and re-run; the model is only saved / exported
-if every check passes.
+Frame (mm): origin on the hole axis at the UNDERSIDE of the ceiling, +Z up into the ceiling. The hole goes through
+the lower layer of the ceiling (CEIL_T thick); above it is a gap, then the solid upper ceiling at ROOF_Z, so the whole
+unit stays below ROOF_Z - TOP_CLEAR. The trim (bezel) sits on the room side (z = -BEZEL_T..0) and covers the edge of
+the hole; the housing and the sensor tower on top of it fill the hole and reach up into the gap. Edit a parameter and
+re-run; the model is only saved / exported if every check passes.
 
- * Mounting: three swing clamps, like in-ceiling speakers. Push the unit into the hole and turn the three countersunk
-   M4 screws in the trim clockwise: the nyloc nut in each arm drags the arm round until it hits its stop (arm now
-   pointing outward over the ceiling), then the arm is pulled down onto the top of the ceiling. Any ceiling between
-   CEIL_T_MIN and CEIL_T_MAX works. Undo: turn anticlockwise, the arms swing back in and the unit drops out.
+ * Mounting: three swing clamps, like in-ceiling speakers, that swing out in the gap. Push the unit into the hole and
+   turn the three countersunk M3 screws in the trim clockwise: the nyloc nut in each arm drags the arm round until it
+   hits its stop (arm now pointing outward over the lower layer), then the arm is pulled down onto its top. Any lower
+   layer between CEIL_T_MIN and CEIL_T_MAX works. Undo: turn anticlockwise, the arms swing back in against the lid
+   columns and the unit drops out. The top lid is the top stop of the arms.
  * HMMD: fixed in a plug whose flat face is the radome (same radome rules as the other case), tilted POD_TILT toward
-   POD_LOOK; turn the whole unit in the hole to aim it. The plug drops straight down into a socket in the housing and
-   pokes through the trim; a flare at its top sits on the socket and crush ribs hold it. Printed radome face down.
+   POD_LOOK; turn the whole unit in the hole to aim it. The plug goes into its socket from the room side until a lip
+   stops it, and crush ribs hold it. Printed radome face down.
  * DHT22 module: its grille sits flush in a window of the trim, in a closed bay of its own, beside the HMMD plug.
  * MH-Z19B: hangs chamber-down over vents in the deck of the sensor tower, pins up; the bay frame keeps it in place.
    Room air reaches it through vent slots in the trim and the space under the deck (plenum).
- * ESP32-C3: stands on edge by the tower wall with its USB-C in a slot of the top lid, so a cable plugs in from above
-   (the open space over the ceiling). The deck also caps the clamp channels and holds the top ends of the M4 screws.
+ * ESP32-C3: lies flat on a tray on top of the MH-Z19B frame. Power: a 5 V cable runs in the gap and comes in through
+   a slot at the top of the wall, soldered to the 5V and GND pins; the USB-C is only for flashing before assembly.
  * Wiring: leads are soldered straight to the modules (no DuPont plugs), to keep the unit short.
 """
 
@@ -39,34 +41,44 @@ SAVE = True  # save SAVE_PATH after building (only if every check passes)
 # one STL per printed part, in print orientation (only if every check passes)
 EXPORT_STL = True
 
-# ------------------------------------------------------------------ ceiling (user spec)
+# ------------------------------------------------------------------ ceiling (user spec, measured)
 HOLE_R = 35.0  # radius of the hole in the ceiling (70 mm across)
-CEIL_T = 35.0  # ceiling thickness (open space above it); used for the reference model
-CEIL_T_MIN, CEIL_T_MAX = 30.0, 40.0  # the clamps grip any thickness in this range
+# the hole goes through the lower layer; above it is a gap, then the solid upper ceiling
+CEIL_T = 30.0  # lower layer: the clamps grip its top, in the gap
+ROOF_Z = 40.0  # underside of the upper ceiling, from the room-side surface
+TOP_CLEAR = 2.0  # the whole unit stays this far below the upper ceiling
+CEIL_T_MIN, CEIL_T_MAX = 28.5, 30.5  # the clamps grip any lower layer in this range
 
 # ------------------------------------------------------------------ housing + sensor tower
 BODY_R = HOLE_R - 1.0  # outer radius of everything that goes into the hole
 WALL = 2.0
 BEZEL_R, BEZEL_T = HOLE_R + 12.0, 3.0  # trim ring on the room side
-DECK_T = 3.0  # tower floor: caps the clamp channels, carries the sensor bays
-# M3 x 12 countersunk from the deck into columns of the housing (tower -> housing)
-TOWER_SCREW_ANGLES, TOWER_SCREW_R, COL_R = (136.0, 256.0, 16.0), 28.3, 2.6
-COL_Z0 = 22.0  # the columns start here, on 45 deg supports, clear of the HMMD plug and DHT22 bay
+HOUSING_Z = (
+    13.0  # housing top = deck underside, over the DHT22 bay lid and the HMMD plug
+)
+DECK_T = 2.0  # tower floor: carries the MH-Z19B bay over the plenum
+# M3 x 10 countersunk from the deck into columns of the housing (tower -> housing)
+TOWER_SCREW_ANGLES, TOWER_SCREW_R, COL_R = (0.0, 121.0, 265.0), 28.3, 2.6
+TOWER_SCREW_LEN = 10.0
 # room-air slots in the trim, by the wall (r0, r1) and the ribs between them
 VENT_R0, VENT_R1, VENT_RIB = 29.75, 31.75, 2.5
 
-# ------------------------------------------------------------------ swing clamps (M4 x 55 countersunk + M4 nyloc)
+# ------------------------------------------------------------------ swing clamps (M3 x 40 countersunk + M3 nyloc)
 CLAMP_ANGLES = (90.0, 210.0, 330.0)
 CLAMP_R = 28.0  # screw axis radius
 # ISO 10642 countersunk screw; the length includes the head
-M4_D, M4_BORE, M4_HEAD_D, M4_LEN = 4.0, 4.5, 8.0, 55.0
-NUT4_AF, NUT4_H = 7.0, 5.0  # DIN 985
+CL_D, CL_BORE, CL_HEAD_D, CL_LEN = 3.0, 3.4, 6.0, 40.0
+CL_NUT_AF, CL_NUT_H = 5.5, 4.0  # DIN 985
+CL_COL_R = 3.0  # column round the screw under the arm (housing and tower)
 # arm: thickness, bar width, axis to tip, nut boss radius
-ARM_T, ARM_W, ARM_L, ARM_BOSS_R = 7.0, 7.0, 15.0, 5.2
-ARM_CLR = 0.8  # clamp channel clearance around the swinging arm
-ARM_STOP_GAP = 0.3  # arm side to its stop face when pointing straight out
-ARM_GRIP_MIN = 8.0  # the arms must reach this far over the ceiling top
-PARK_GAP = 2.0  # parked (retracted) arm bottom above CEIL_T_MAX
+ARM_T, ARM_W, ARM_L, ARM_BOSS_R = 5.0, 7.0, 15.0, 4.5
+ARM_CLR = 0.8  # clearance around the swinging arm
+ARM_STOP_GAP = 0.3  # arm side to its stop face (wall edge) when pointing straight out
+ARM_TOP_GAP = 0.3  # parked arm top to the lid underside: the lid is the top stop
+ARM_GRIP_MIN = 8.0  # the arms must reach this far over the top of the lower layer
+PARK_GAP = 0.5  # parked (retracted) arm bottom above CEIL_T_MAX
+# lid columns: each one also stops an arm tucked in (radius, clamp coordinates -y)
+LID_COL_R, LID_COL_Y = 3.0, 11.0
 
 # ------------------------------------------------------------------ HMMD plug (fixed tilt)
 POD_TILT = 25.0  # radome face from horizontal (deg)
@@ -102,11 +114,9 @@ BTN_W, BTN_D, BTN_H = 4.0, 3.0, 2.0
 HDR_W, HDR_H, HDR_TAIL, HDR_LONG = 2.54, 2.5, 3.0, 6.0
 # leads soldered into the pin holes: joint below, insulated stub above (reference, wiring room)
 WIRE_JOINT, WIRE_STUB = 1.0, 2.5
-# the board stands on edge at ESP_ANGLE, its back face ESP_BACK_R from the axis
-ESP_ANGLE, ESP_BACK_R = 90.0, 29.6
-ESP_TOP_GAP = 0.3  # PCB end (USB side) to the lid underside
-ESP_LIFT = 4.2  # antenna end of the board above the deck
-LID_COLS = ((29.3, 60.0), (29.3, 200.0), (29.3, 320.0))  # top lid screws (r, deg)
+# the board lies flat on a tray on the MH-Z19B frame, back face down, its length along the bay y
+ESP_STANDOFF = 1.2  # rails under the back face: room for the solder joints of the leads
+ESP_DY = 0.0  # board centre along the bay y (USB-C toward +y)
 
 # ------------------------------------------------------------------ Waveshare HMMD (S3KM1110, 24 GHz) - as the other case
 HM_W, HM_L, HM_R = 20.0, 20.0, 1.4
@@ -168,32 +178,34 @@ MZ_PIN_N = (5, 4)  # HD SR TX RX Vo | PWM AOT GND Vin
 MZ_PIN_LEN, MZ_SPACER_H = 7.9, 2.5  # below the PCB in the datasheet orientation
 MZ_GAP = 1.2  # chamber (bump) to the vented floor
 MZ_CLR = 0.45
+MZ_FRAME_T = 2.0
+# frame screws: on the long sides, diagonally opposite, clear of the ESP32 tray (bay x)
+MZ_BOSS_X = 14.5
 
 # ------------------------------------------------------------------ misc
-# slots in the lid: room air rises from the plenum past the ESP32 into the space above (False over a cold attic)
-INTERIOR_VENTS = True
-WIRE_HOLE_D = 7.0  # extra hole in the lid for a power cable instead of USB-C (0 = none)
-# slot in the deck (x0, y0, x1, y1, width): HMMD + DHT22 leads up into the tower, also a chimney
-DECK_SLOT = (-11.0, 12.5, 11.0, 12.5, 2.4)
+# power: a 5 V cable runs in the gap and comes in through a slot in the wall and the lid rim
+CABLE_ANGLE, CABLE_W = 136.0, 6.0
+CABLE_Z0 = CEIL_T_MAX + 0.5  # slot bottom, above the lower layer of the ceiling
+# slot in the deck (x0, y0, x1, y1, width): HMMD + DHT22 leads up into the tower
+DECK_SLOT = (-11.0, 15.0, 21.0, 15.0, 2.4)
 BAY_WALL = 1.6
 BOSS_R = 3.25  # screw bosses (M3 into a 2.6 mm pilot)
 
 # ------------------------------------------------------------------ derived
 D2R = math.pi / 180.0
 ARM_PARK_Z = CEIL_T_MAX + PARK_GAP  # parked arm bottom
-# top of the housing = deck underside; the deck is also the top stop of the arms
-HOUSING_Z = ARM_PARK_Z + ARM_T + 1.0
-DECK_Z = HOUSING_Z + DECK_T  # deck top = z 0 of the bay coordinates
-CH_Z0 = CEIL_T_MIN - 1.5  # the clamp channels start here, on 45 deg supports
-TOP_Z = DECK_Z + ESP_LIFT + PCB_L + ESP_TOP_GAP  # tower top = lid underside
-LID_T = 2.4
-M4_BEARING = 2.5  # blind hole in the deck underside that takes the M4 screw end
-# clamp channel, in clamp coordinates (x radial out, y anticlockwise seen from above)
+DECK_Z = HOUSING_Z + DECK_T  # deck top = z 0 of the MH-Z19B bay coordinates
+CH_Z0 = CEIL_T_MIN - 1.0  # the arms sweep from here up to the lid
+# tower top = lid underside = top stop of the parked arms
+TOP_Z = ARM_PARK_Z + ARM_T + ARM_TOP_GAP
+LID_T = 1.6
+# arm sweep, in clamp coordinates (x radial out, y anticlockwise seen from above)
 NOTCH_X0 = -(ARM_W / 2 + ARM_CLR)
 NOTCH_Y1 = ARM_W / 2 + ARM_STOP_GAP  # straight-out stop face
 NOTCH_RAD = ARM_L + ARM_CLR
 NOTCH_BOSS = ARM_BOSS_R + ARM_CLR
-NUT4_POCKET = NUT4_H + 0.2
+CL_NUT_POCKET = CL_NUT_H + 0.2
+TOWER_PILOT_Z0 = HOUSING_Z - (TOWER_SCREW_LEN - DECK_T) - 1.0  # pilot hole bottom
 
 # HMMD frame (H): radome face at z = 0, HMMD toward +z, +x up the slope; the plug is printed in this frame.
 # Plug frame (P): same origin (face centre), z vertical, +x the way the radar is tilted.
@@ -224,7 +236,7 @@ DHT_Z_FACE = -BEZEL_T + DHT_LIP  # grille face
 MZ_Z_PCB = MZ_GAP + MZ_BUMP_H + MZ_CH_H
 MZ_BAY_TOP = MZ_Z_PCB + MZ_PCB_T + 0.6
 
-ESP_Z0 = TOP_Z - ESP_TOP_GAP - PCB_L  # antenna end of the upright ESP32
+ESP_Z0 = MZ_BAY_TOP + MZ_FRAME_T + ESP_STANDOFF  # bay coordinates: ESP32 back face
 
 
 # ------------------------------------------------------------------ helpers
@@ -329,14 +341,19 @@ def mz_plc():
 
 
 def esp_plc():
-    """ESP32 coordinates (x across, y toward USB, z = back face to front face) -> world: upright, front facing in."""
-    ur, ut = polar(1, ESP_ANGLE), polar(1, ESP_ANGLE + 90)
-    ex, ey, ez = -ut, V(0, 0, 1), -ur
-    t = ur * ESP_BACK_R + ut * (PCB_W / 2) + V(0, 0, ESP_Z0)
-    m = App.Matrix(
-        ex.x, ey.x, ez.x, t.x, ex.y, ey.y, ez.y, t.y, ex.z, ey.z, ez.z, t.z, 0, 0, 0, 1
+    """ESP32 coordinates (x across, y toward USB, z = back face to front face) -> world: flat on the tray of the
+    MH-Z19B frame, component side up, USB-C toward the bay +y."""
+    return mz_plc().multiply(
+        App.Placement(V(-PCB_W / 2, ESP_DY - PCB_L / 2, ESP_Z0), App.Rotation())
     )
-    return App.Placement(m)
+
+
+def lid_cols():
+    """World xy of the lid columns; each one also stops an arm when it is tucked in."""
+    return [
+        clamp_plc(a).multVec(V(NOTCH_X0 - LID_COL_R, -LID_COL_Y, 0))
+        for a in CLAMP_ANGLES
+    ]
 
 
 def plug_plc():
@@ -626,23 +643,35 @@ def notch_local(grow, z0, z1):
     )
 
 
-def cone_support(foot, r_in, z_top):
-    """World: 45 deg support under a feature by the wall - its footprint foot(z0, z1), trimmed to a cone rising
-    from the wall; r_in = the innermost radius of the footprint."""
-    h = BODY_R - WALL - r_in + 1.0
-    z0 = z_top - h
-    keep = cyl(0, 0, z0, BODY_R, h).cut(
-        cone(0, 0, z0, BODY_R - WALL + 0.01, BODY_R - WALL - h, h)
+def wall_col(a, r, rc, z0, z1):
+    """World: column of radius rc at (r, a deg) with a web out to the wall, from z0 to z1."""
+    web = box(0, -rc, z0, BODY_R - WALL + 0.5 - r, rc, z1)
+    return moved(
+        cyl(0, 0, z0, rc, z1 - z0).fuse(web),
+        App.Placement(polar(r, a), App.Rotation(V(0, 0, 1), a)),
     )
-    return foot(z0, z_top).common(keep)
 
 
-def channel_support(p):
-    return cone_support(
-        lambda z0, z1: moved(notch_local(WALL, z0, z1), p),
-        CLAMP_R - max(-NOTCH_X0, NOTCH_BOSS) - WALL,
-        CH_Z0,
+def csk_hole(x, y, z0, z1, d=M3_BORE, head_d=M3_HEAD_D + 0.4):
+    """Through hole from z0 to z1 with a 90 deg countersink that opens at z1."""
+    k = (head_d - d) / 2
+    return cyl(x, y, z0 - 1, d / 2, z1 - z0 + 2).fuse(
+        cone(x, y, z1 - k, d / 2, head_d / 2 + 0.01, k + 0.01)
     )
+
+
+def cable_slot():
+    """World: slot for the 5 V cable through the wall and the lid rim, from CABLE_Z0 up, deep enough that the cable
+    stays inside the hole while the unit goes in."""
+    s = box(
+        BODY_R - CABLE_W,
+        -CABLE_W / 2,
+        CABLE_Z0,
+        BODY_R + 1,
+        CABLE_W / 2,
+        TOP_Z + LID_T + 1,
+    )
+    return rot_z(s, CABLE_ANGLE)
 
 
 def sector(r0, r1, z0, h, ang):
@@ -653,14 +682,19 @@ def sector(r0, r1, z0, h, ang):
 
 
 def vent_arcs():
-    """Trim slots (start, end deg) between the M4 countersinks, with ribs (trim_vents() trims them further)."""
-    blocked = sorted((a % 360, 12.0) for a in CLAMP_ANGLES)
+    """Trim slots (start, end deg) between the screw columns, with ribs (trim_vents() trims them further)."""
+    blocked = sorted(
+        [(a % 360, 12.0) for a in CLAMP_ANGLES]
+        + [(a % 360, 8.0) for a in TOWER_SCREW_ANGLES]
+    )
     rib = math.degrees(VENT_RIB / VENT_R1)
     arcs = []
     for (a0, w0), (a1, w1) in zip(
         blocked, blocked[1:] + [(blocked[0][0] + 360, blocked[0][1])]
     ):
         s, e = a0 + w0, a1 - w1
+        if e - s < 10.0:  # too short to print cleanly
+            continue
         n = max(1, round((e - s) / 25.0))
         step = (e - s + rib) / n
         arcs += [(s + i * step, s + (i + 1) * step - rib) for i in range(n)]
@@ -775,7 +809,7 @@ def dht_bay():
 def mz_bay():
     """MH-Z19B bay (bay coordinates): chamber pocket with vents, ledges for the PCB ends, screw bosses."""
     hx, hy, t = MZ_PCB_L / 2 + 0.35, MZ_CH_W / 2 + MZ_CLR, BAY_WALL
-    bosses = [(s * (hx + t + BOSS_R - 1.0), 0.0) for s in (-1, 1)]
+    bosses = [(s * MZ_BOSS_X, s * (hy + t + BOSS_R - 1.0)) for s in (-1, 1)]
     walls = fuse_all(
         [box(-hx - t, -hy - t, 0, hx + t, hy + t, MZ_BAY_TOP)]
         + [cyl(bx, by, 0, BOSS_R, MZ_BAY_TOP) for bx, by in bosses]
@@ -805,29 +839,33 @@ def mz_bay():
     return walls, cuts, openings, bosses
 
 
-def esp_socket():
-    """ESP32 coordinates: column from the deck up to the antenna end of the board, with jaws that miss every part."""
-    back = -(BODY_R - WALL + 0.5 - ESP_BACK_R)  # reaches into the outer wall
-    t1 = PCB_T_MAX + 0.1
-    return fuse_all(
-        [
-            box(-1.5, -ESP_LIFT - 0.5, back, PCB_W + 1.5, 0, 3.4),  # column + floor
-            box(
-                -1.5, 0, back, PCB_W + 1.5, 2.5, -0.1
-            ),  # back jaw (below the first header tail)
-            box(-1.5, 0, back, -0.3, 3.0, 2.2),  # side stops
-            box(PCB_W + 0.3, 0, back, PCB_W + 1.5, 3.0, 2.2),
-            box(
-                0.0, 0, t1, 1.4, 1.5, t1 + 1.5
-            ),  # front fingers at the two corners (clear of headers / antenna / U.FL)
-            box(PCB_W - 1.4, 0, t1, PCB_W, 1.5, t1 + 1.5),
-        ]
-    )
+def esp_tray():
+    """Bay coordinates, on top of the MH-Z19B frame: two rails under the ESP32 back face (clear of the solder joints
+    along the pin rows) and a low rim round the board, below its top face at any PCB thickness."""
+    x0, y0 = -PCB_W / 2, ESP_DY - PCB_L / 2
+    z0, zb = MZ_BAY_TOP + MZ_FRAME_T - 0.01, ESP_Z0
+    c, t = 0.3, 1.2
+    rim = rbox(
+        x0 - c - t,
+        y0 - c - t,
+        z0,
+        x0 + PCB_W + c + t,
+        y0 + PCB_L + c + t,
+        zb + 0.8,
+        1.5,
+    ).cut(rbox(x0 - c, y0 - c, z0 - 1, x0 + PCB_W + c, y0 + PCB_L + c, zb + 2, 1.0))
+    rails = [
+        box(x0 + u0, y0 + 0.5, z0, x0 + u1, y0 + PCB_L - 0.5, zb)
+        for u0, u1 in ((4.0, 6.0), (12.0, 14.0))
+    ]
+    return fuse_all([rim] + rails)
 
 
-def usb_center(t=None):
-    t = (PCB_T_MIN + PCB_T_MAX) / 2 if t is None else t
-    return esp_plc().multVec(V(USB_CX, PCB_L + USB_OVERHANG, t + USB_H / 2))
+def tray_plate():
+    """Bay coordinates: the part of the frame plate under the ESP32 tray."""
+    x0, y0, g = -PCB_W / 2 - 1.5, ESP_DY - PCB_L / 2 - 1.5, 3.0
+    z = MZ_BAY_TOP
+    return box(x0, y0, z, -x0, y0 + PCB_L + g, z + MZ_FRAME_T)
 
 
 # ------------------------------------------------------------------ case parts
@@ -840,27 +878,12 @@ def build_body():
     disc = cyl(0, 0, 0, BODY_R, HOUSING_Z)
     adds = [bezel, disc.cut(cyl(0, 0, -1, BODY_R - WALL, HOUSING_Z + 2))]
     cuts = []
-    for a in CLAMP_ANGLES:
-        p = clamp_plc(a)
-        adds.append(moved(notch_local(WALL, CH_Z0, HOUSING_Z), p).common(disc))
-        adds.append(channel_support(p).common(disc))
-        adds.append(
-            moved(cyl(0, 0, 0, M4_HEAD_D / 2 + 1.0, 4.0), p)
-        )  # stiffens the trim
-        cuts.append(moved(notch_local(0, CH_Z0, HOUSING_Z + 1), p))
-    for a in TOWER_SCREW_ANGLES:  # columns + webs to the wall for the tower screws
-
-        def foot(z0, z1, a=a):
-            web = box(0, -COL_R, z0, BODY_R - WALL + 0.5 - TOWER_SCREW_R, COL_R, z1)
-            return moved(
-                cyl(0, 0, z0, COL_R, z1 - z0).fuse(web),
-                App.Placement(polar(TOWER_SCREW_R, a), App.Rotation(V(0, 0, 1), a)),
-            )
-
+    for a in CLAMP_ANGLES:  # columns round the clamp screws, from the trim to the deck
+        adds.append(wall_col(a, CLAMP_R, CL_COL_R, 0, HOUSING_Z))
+    for a in TOWER_SCREW_ANGLES:  # columns for the tower screws
         p = polar(TOWER_SCREW_R, a)
-        adds.append(foot(COL_Z0, HOUSING_Z))
-        adds.append(cone_support(foot, TOWER_SCREW_R - COL_R, COL_Z0))
-        cuts.append(cyl(p.x, p.y, HOUSING_Z - 12, M3_PILOT / 2, 13))
+        adds.append(wall_col(a, TOWER_SCREW_R, COL_R, 0, HOUSING_Z))
+        cuts.append(cyl(p.x, p.y, TOWER_PILOT_Z0, M3_PILOT / 2, 20))
     # DHT22 bay on the trim, grille in a window of the trim
     walls, bcuts, bopen, _ = dht_bay()
     adds.append(moved(walls, dht_plc()))
@@ -874,31 +897,23 @@ def build_body():
     bores = []
     for (
         a
-    ) in CLAMP_ANGLES:  # M4 bores through the trim and channel support + countersinks
+    ) in CLAMP_ANGLES:  # clamp screw bores through the trim and columns + countersinks
         p = clamp_plc(a)
         bores.append(
-            moved(cyl(0, 0, -BEZEL_T - 1, M4_BORE / 2, CH_Z0 + BEZEL_T + 2), p)
+            moved(cyl(0, 0, -BEZEL_T - 1, CL_BORE / 2, HOUSING_Z + BEZEL_T + 2), p)
         )
-        rc = M4_HEAD_D / 2 + 0.2
+        rc = CL_HEAD_D / 2 + 0.2
         bores.append(
-            moved(cone(0, 0, -BEZEL_T - 0.01, rc, M4_BORE / 2, rc - M4_BORE / 2), p)
+            moved(cone(0, 0, -BEZEL_T - 0.01, rc, CL_BORE / 2, rc - CL_BORE / 2), p)
         )
     body = body.cut(fuse_all(bores))
     return solid(body.removeSplitter())
 
 
-def chan_mask(grow=WALL + 0.5):
-    """World: the clamp channels under the deck, grown; openings in the deck stay outside this."""
-    return fuse_all(
-        [
-            moved(notch_local(grow, HOUSING_Z - 5, DECK_Z + 1), clamp_plc(a))
-            for a in CLAMP_ANGLES
-        ]
-    )
-
-
 def build_tower():
-    """Deck (caps the clamp channels, M4 bearings, MH-Z19B bay) + wall up to the lid, ESP32 socket, lid columns."""
+    """Deck (MH-Z19B bay over the plenum) + wall up to the lid. Per clamp: a column round the screw under the arm,
+    the arm sweep cut out through the wall (its edge is the outward stop) and a lid column that stops the arm when it
+    is tucked in. Power cable slot at the top of the wall."""
     z0 = HOUSING_Z
     shell = cyl(0, 0, z0, BODY_R, TOP_Z - z0).cut(
         cyl(0, 0, DECK_Z, BODY_R - WALL, TOP_Z)
@@ -907,34 +922,22 @@ def build_tower():
     adds = [shell, moved(walls, mz_plc())]
     cuts = [moved(c, mz_plc()) for c in bcuts]
     openings = [moved(c, mz_plc()) for c in bopen] + [deck_slot()]
-    adds.append(
-        moved(esp_socket(), esp_plc()).common(cyl(0, 0, z0, BODY_R - 0.5, TOP_Z - z0))
-    )
-    for r, a in LID_COLS:
-        p = polar(r, a)
-        adds.append(cyl(p.x, p.y, DECK_Z - 0.01, 3.0, TOP_Z - DECK_Z + 0.01))
-        cuts.append(cyl(p.x, p.y, TOP_Z - 10, M3_PILOT / 2, 11))
+    for a in CLAMP_ANGLES:
+        p = clamp_plc(a)
+        adds.append(wall_col(a, CLAMP_R, CL_COL_R, DECK_Z - 0.01, CH_Z0 - 0.5))
+        cuts.append(moved(notch_local(0, CH_Z0, TOP_Z + 1), p))
+        cuts.append(moved(cyl(0, 0, z0 - 1, CL_BORE / 2, CH_Z0 + 1 - z0), p))
+    for q in lid_cols():
+        adds.append(cyl(q.x, q.y, DECK_Z - 0.01, LID_COL_R, TOP_Z - DECK_Z + 0.01))
+        cuts.append(cyl(q.x, q.y, TOP_Z - 9, M3_PILOT / 2, 10))
     for (
         a
     ) in TOWER_SCREW_ANGLES:  # countersunk from the deck top into the housing columns
         p = polar(TOWER_SCREW_R, a)
-        rc = M3_HEAD_D / 2 + 0.2
-        cuts.append(cyl(p.x, p.y, z0 - 1, M3_BORE / 2, DECK_T + 2))
-        cuts.append(
-            cone(
-                p.x,
-                p.y,
-                DECK_Z - rc + M3_BORE / 2 + 0.01,
-                M3_BORE / 2,
-                rc,
-                rc - M3_BORE / 2,
-            )
-        )
-    for a in CLAMP_ANGLES:  # blind bearings for the M4 screw ends
-        p = clamp_plc(a).Base
-        cuts.append(cyl(p.x, p.y, z0 - 1, M4_D / 2 + 0.3, M4_BEARING + 1))
+        cuts.append(csk_hole(p.x, p.y, z0, DECK_Z))
+    cuts.append(cable_slot())
     tower = fuse_all(adds).cut(fuse_all(cuts))
-    tower = tower.cut(fuse_all(openings).cut(chan_mask()))
+    tower = tower.cut(fuse_all(openings))
     return solid(tower.removeSplitter())
 
 
@@ -1018,8 +1021,8 @@ def build_arm():
             cyl(tipx, 0, 0, ARM_W / 2, ARM_T),
         ]
     )
-    arm = arm.cut(cyl(0, 0, -1, M4_BORE / 2, ARM_T + 2)).cut(
-        hexagon(0, 0, ARM_T - NUT4_POCKET, NUT4_AF + 0.3, NUT4_POCKET + 1)
+    arm = arm.cut(cyl(0, 0, -1, CL_BORE / 2, ARM_T + 2)).cut(
+        hexagon(0, 0, ARM_T - CL_NUT_POCKET, CL_NUT_AF + 0.3, CL_NUT_POCKET + 1)
     )
     return solid(arm.removeSplitter())
 
@@ -1035,40 +1038,16 @@ def arm_at(arm, clamp_angle, swing=0.0, z=CEIL_T):
 
 
 def build_lid():
+    """Closes the tower and is the top stop of the arms: countersunk screws into the lid columns, holes for the
+    clamp screw ends, notch for the power cable."""
     z0 = TOP_Z
     lid = cyl(0, 0, z0, BODY_R, LID_T)
     lid = fillet_where(lid, 1.0, lambda a, b: abs(a.z - z0 - LID_T) < 1e-6)
-    cuts = []
-    for r, a in LID_COLS:
-        p = polar(r, a)
-        cuts.append(cyl(p.x, p.y, z0 - 1, M3_BORE / 2, LID_T + 2))
-    c = usb_center()
-    ut = polar(1, ESP_ANGLE + 90)
-    # receptacle at any PCB thickness: rounded rectangle (round ends would catch its corners)
-    hw = (USB_H + PCB_T_MAX - PCB_T_MIN + 0.4) / 2
-    hl = (USB_W + 0.6) / 2
-    hole = rbox(-hl, -hw, z0 - 1, hl, hw, z0 + LID_T + 1, 1.2)
-    rot = App.Rotation(V(0, 0, 1), ESP_ANGLE + 90)
-    cuts.append(moved(hole, App.Placement(V(c.x, c.y, 0), rot)))
-    half = (14.0 - 8.5) / 2  # pocket for the plug overmould
-    cuts.append(
-        slot(
-            c.x - ut.x * half,
-            c.y - ut.y * half,
-            c.x + ut.x * half,
-            c.y + ut.y * half,
-            z0 + LID_T - 1.3,
-            2,
-            8.5,
-        )
-    )
-    if INTERIOR_VENTS:
-        for da in (-32, -22, 22, 32):
-            p0, p1 = polar(12.0, ESP_ANGLE + da), polar(24.0, ESP_ANGLE + da)
-            cuts.append(slot(p0.x, p0.y, p1.x, p1.y, z0 - 1, LID_T + 2, 2.0))
-    if WIRE_HOLE_D > 0:
-        p = polar(17.0, ESP_ANGLE)
-        cuts.append(cyl(p.x, p.y, z0 - 1, WIRE_HOLE_D / 2, LID_T + 2))
+    cuts = [csk_hole(q.x, q.y, z0, z0 + LID_T) for q in lid_cols()]
+    for a in CLAMP_ANGLES:
+        p = clamp_plc(a).Base
+        cuts.append(cyl(p.x, p.y, z0 - 1, CL_D / 2 + 0.4, LID_T + 2))
+    cuts.append(cable_slot())
     return solid(lid.cut(fuse_all(cuts)).removeSplitter())
 
 
@@ -1080,65 +1059,71 @@ def build_dht_lid():
         [box(x0 - t, -hw - t, z, x1 + t, hw + t, z + 2.0)]
         + [cyl(bx, by, z, BOSS_R, 2.0) for bx, by in bosses]
     )
-    cuts = [cyl(bx, by, z - 1, M3_BORE / 2, 4) for bx, by in bosses] + [
+    # countersunk: the heads stay under the deck; notch for the wires
+    cuts = [csk_hole(bx, by, z, z + 2.0) for bx, by in bosses] + [
         box(x0, -hw + 1.5, z - 1, x0 + 5.5, hw - 1.5, z + 3)
-    ]  # wires
+    ]
     # the bay corners run into the tower wall; the lid stops short of it (axis at y = DHT_DIST)
     lid = lid.common(cyl(0, DHT_DIST, z - 1, BODY_R - WALL - 0.3, 4))
     return solid(lid.cut(fuse_all(cuts)).removeSplitter())
 
 
 def build_mz_frame():
+    """Bay coordinates: frame over the MH-Z19B (slots for its pins, countersunk screws) + the ESP32 tray on top."""
     hx, hy, t, z = MZ_PCB_L / 2 + 0.35, MZ_CH_W / 2 + MZ_CLR, BAY_WALL, MZ_BAY_TOP
+    zt = z + MZ_FRAME_T
     bosses = mz_bay()[3]
     frame = fuse_all(
-        [box(-hx - t, -hy - t, z, hx + t, hy + t, z + 2.0)]
-        + [cyl(bx, by, z, BOSS_R, 2.0) for bx, by in bosses]
+        [box(-hx - t, -hy - t, z, hx + t, hy + t, zt), tray_plate(), esp_tray()]
+        + [cyl(bx, by, z, BOSS_R, MZ_FRAME_T) for bx, by in bosses]
     )
-    cuts = [cyl(bx, by, z - 1, M3_BORE / 2, 4) for bx, by in bosses]
+    cuts = [csk_hole(bx, by, z, zt) for bx, by in bosses]
     cuts += [
-        box(s * MZ_PIN_X - 2.1, -hy + 0.6, z - 1, s * MZ_PIN_X + 2.1, hy - 0.6, z + 3)
+        box(s * MZ_PIN_X - 2.1, -hy + 0.6, z - 1, s * MZ_PIN_X + 2.1, hy - 0.6, zt + 3)
         for s in (-1, 1)
     ]
     return solid(frame.cut(fuse_all(cuts)).removeSplitter())
 
 
 def build_ceiling(t=CEIL_T):
+    """Lower layer of thickness t with the hole + the solid upper ceiling above the gap."""
     s = BEZEL_R + 20
-    return box(-s, -s, 0, s, s, t).cut(cyl(0, 0, -1, HOLE_R, t + 2))
+    lower = box(-s, -s, 0, s, s, t).cut(cyl(0, 0, -1, HOLE_R, t + 2))
+    return lower.fuse(box(-s, -s, ROOF_Z, s, s, ROOF_Z + 10))
 
 
 def build_hardware(arm_z=CEIL_T):
     """Reference screws and nuts (not printed)."""
     parts = {}
-    k4 = (M4_HEAD_D - M4_D) / 2
+    kc = (CL_HEAD_D - CL_D) / 2
     for i, a in enumerate(CLAMP_ANGLES):
         p = clamp_plc(a)
-        scr = cone(0, 0, -BEZEL_T, M4_HEAD_D / 2, M4_D / 2, k4).fuse(
-            cyl(0, 0, -BEZEL_T + k4 - 0.01, M4_D / 2, M4_LEN - k4)
+        scr = cone(0, 0, -BEZEL_T, CL_HEAD_D / 2, CL_D / 2, kc).fuse(
+            cyl(0, 0, -BEZEL_T + kc - 0.01, CL_D / 2, CL_LEN - kc)
         )
-        parts["M4_%d" % i] = (
-            "M4 x %g countersunk (clamp %d)" % (M4_LEN, i + 1),
+        parts["Clamp_%d" % i] = (
+            "M3 x %g countersunk (clamp %d)" % (CL_LEN, i + 1),
             moved(scr, p),
             (0.75, 0.75, 0.78),
         )
-        nut = hexagon(0, 0, arm_z + ARM_T - NUT4_POCKET, NUT4_AF, NUT4_H).cut(
-            cyl(0, 0, arm_z, M4_D / 2, 20)
+        nut = hexagon(0, 0, arm_z + ARM_T - CL_NUT_POCKET, CL_NUT_AF, CL_NUT_H).cut(
+            cyl(0, 0, arm_z, CL_D / 2, 20)
         )
         parts["Nyloc_%d" % i] = (
-            "M4 nyloc nut (clamp %d)" % (i + 1),
+            "M3 nyloc nut (clamp %d)" % (i + 1),
             moved(nut, p),
             (0.75, 0.75, 0.78),
         )
     k3 = (M3_HEAD_D - M3_D) / 2
+    n = TOWER_SCREW_LEN
     for i, a in enumerate(TOWER_SCREW_ANGLES):  # head flush with the deck top
         q = polar(TOWER_SCREW_R, a)
         # shank at the thread core: the thread cuts into the 2.6 mm pilot by design
         scr = cone(q.x, q.y, DECK_Z - k3, M3_D / 2, M3_HEAD_D / 2, k3).fuse(
-            cyl(q.x, q.y, DECK_Z - 12, M3_PILOT / 2, 12 - k3 + 0.01)
+            cyl(q.x, q.y, DECK_Z - n, M3_PILOT / 2, n - k3 + 0.01)
         )
         parts["M3tower_%d" % i] = (
-            "M3 x 12 countersunk (tower to housing %d)" % (i + 1),
+            "M3 x %g countersunk (tower to housing %d)" % (n, i + 1),
             scr,
             (0.75, 0.75, 0.78),
         )
@@ -1149,20 +1134,32 @@ def build_hardware(arm_z=CEIL_T):
 SPECS = [
     (
         "Ceiling",
-        "hole %g mm across (R %g), ceiling %g mm thick, open space above; clamps grip %g-%g mm"
-        % (2 * HOLE_R, HOLE_R, CEIL_T, CEIL_T_MIN, CEIL_T_MAX),
-        "user spec",
+        "hole %g mm across through a %g mm lower layer, then a gap, solid upper ceiling %g mm up; clamps grip %g-%g mm"
+        % (2 * HOLE_R, CEIL_T, ROOF_Z, CEIL_T_MIN, CEIL_T_MAX),
+        "user spec (measured)",
     ),
     (
         "Size",
-        "trim %g mm across; housing + sensor tower %g mm across, %.1f mm from the trim face to the lid top"
-        % (2 * BEZEL_R, 2 * BODY_R, BEZEL_T + TOP_Z + LID_T),
+        "trim %g mm across; housing + sensor tower %g mm across, %.1f mm above the ceiling surface (%.1f from the trim face), %.1f mm under the upper ceiling"
+        % (
+            2 * BEZEL_R,
+            2 * BODY_R,
+            TOP_Z + LID_T,
+            BEZEL_T + TOP_Z + LID_T,
+            ROOF_Z - TOP_Z - LID_T,
+        ),
         "design result",
     ),
     (
         "Clamps",
-        "3 swing arms on M4 x 55 countersunk screws (ISO 10642) with M4 nyloc nuts (DIN 985) - the nyloc friction swings the arm out",
+        "3 swing arms in the gap on M3 x %g countersunk screws (ISO 10642) with M3 nyloc nuts (DIN 985) - the nyloc friction swings the arm out; the lid is their top stop"
+        % CL_LEN,
         "design choice",
+    ),
+    (
+        "Power",
+        "5 V cable through the slot at the top of the wall (in the gap), soldered to the ESP32 5V and GND pins",
+        "user choice",
     ),
     (
         "Room air",
@@ -1177,12 +1174,13 @@ SPECS = [
     ),
     (
         "Other screws",
-        "3 x M3 x 12 countersunk tower -> housing, 2 x M3 x 8 per bay lid (DHT22, MH-Z19B), 3 x M3 x 10 for the top lid - all into 2.6 mm pilot holes",
+        "all countersunk, into 2.6 mm pilot holes: 3 x M3 x %g tower -> housing, 2 x M3 x 8 each for the DHT22 bay lid and the MH-Z19B frame, 3 x M3 x 10 for the top lid"
+        % TOWER_SCREW_LEN,
         "design choice",
     ),
     (
         "Board",
-        "ESP32-C3 SuperMini Plus (V2), red PCB, 22.52 x 18 mm; on edge, USB-C in the top lid; PCB 1.0-1.6 mm checked",
+        "ESP32-C3 SuperMini Plus (V2), red PCB, 22.52 x 18 mm; flat on a tray on the MH-Z19B frame, USB-C only for flashing; PCB 1.0-1.6 mm checked",
         "datasheet + illustration",
     ),
     (
@@ -1227,7 +1225,7 @@ SPECS = [
     ),
     (
         "Print",
-        "housing trim-down, tower deck-down, HMMD plug radome face-down (smooth bed), keeper cap-down, lid/arms/bay lids flat",
+        "housing trim-down, tower deck-down, HMMD plug radome face-down (smooth bed), keeper cap-down, lid/arms/bay lid/frame flat",
         "design choice",
     ),
 ]
@@ -1281,13 +1279,13 @@ def build():
     arm = build_arm()
     case = {
         "Body": (
-            "Housing: trim + HMMD plug socket + DHT22 bay + clamp channels",
+            "Housing: trim + HMMD plug socket + DHT22 bay + screw columns",
             build_body(),
             (0.93, 0.93, 0.92),
             0,
         ),
         "Tower": (
-            "Sensor tower: deck + MH-Z19B bay + ESP32 socket",
+            "Sensor tower: deck + MH-Z19B bay + clamp arm stops",
             build_tower(),
             (0.85, 0.88, 0.93),
             0,
@@ -1300,7 +1298,7 @@ def build():
         ),
         "Keeper": ("HMMD keeper + cap", build_keeper(), (0.30, 0.60, 0.90), 0),
         "Lid": (
-            "Top lid (USB-C slot, power cable hole)",
+            "Top lid (top stop of the arms, power cable notch)",
             build_lid(),
             (0.30, 0.60, 0.90),
             55,
@@ -1312,7 +1310,7 @@ def build():
             0,
         ),
         "MZ_Frame": (
-            "MH-Z19B bay frame",
+            "MH-Z19B bay frame + ESP32 tray",
             moved(build_mz_frame(), mz_plc()),
             (0.30, 0.60, 0.90),
             0,
@@ -1338,7 +1336,14 @@ def build():
         for k, (lab, s, rgb) in parts.items():
             new_part(doc, grp + "_" + k, lab, s, rgb, group=g)
     g = doc.addObject("App::DocumentObjectGroup", "Ceiling_Reference")
-    g.Label = "Ceiling - reference (%g mm, hole %g mm)" % (CEIL_T, 2 * HOLE_R)
+    g.Label = (
+        "Ceiling - reference (%g mm layer, hole %g mm, upper ceiling at %g mm)"
+        % (
+            CEIL_T,
+            2 * HOLE_R,
+            ROOF_Z,
+        )
+    )
     new_part(
         doc,
         "Ceiling",
@@ -1412,22 +1417,32 @@ def verify(world, arm):
     ceil = build_ceiling()
     for cn, cs in case.items():
         check(ovl(ceil, cs) < 1e-4, "%s cuts into the ceiling" % cn)
+    # nothing may come closer than TOP_CLEAR to the upper ceiling, parked arms and screw ends included
+    hw_park = build_hardware(ARM_PARK_Z)
+    top = max(
+        [s.BoundBox.ZMax for s in case.values()]
+        + [s.BoundBox.ZMax for _, s, _ in hw_park.values()]
+        + [s.BoundBox.ZMax for p in refs.values() for _, s, _ in p.values()]
+        + [ARM_PARK_Z + ARM_T]
+    )
+    print(
+        "unit top z=%.2f (lid top %.2f), upper ceiling at %g: %.2f mm clear"
+        % (top, TOP_Z + LID_T, ROOF_Z, ROOF_Z - top)
+    )
+    check(
+        top <= ROOF_Z - TOP_CLEAR + 1e-6,
+        "unit comes within %g mm of the upper ceiling" % TOP_CLEAR,
+    )
 
-    print("ESP32 PCB thickness sweep (upright, USB-C in the lid):")
+    print("ESP32 PCB thickness sweep (flat on the tray of the MH-Z19B frame):")
+    frame = world["MZ_Frame"]
     for t in (PCB_T_MIN, 1.2, 1.4, PCB_T_MAX):
         parts = {k: moved(s, esp_plc()) for k, (_, s, _) in build_esp32(t).items()}
-        v = sum(ovl(tower, s) + ovl(lid, s) for s in parts.values())
-        usb = parts["USB_C"]
-        tip = usb.BoundBox.ZMax
+        v = sum(ovl(frame, s) + ovl(lid, s) + ovl(tower, s) for s in parts.values())
+        zt = max(s.BoundBox.ZMax for s in parts.values())
         print(
-            "  T=%.1f overlap=%.4f | USB-C to lid %.2f, to tower %.2f | receptacle tip %.2f below the lid top"
-            % (
-                t,
-                v,
-                usb.distToShape(lid)[0],
-                usb.distToShape(tower)[0],
-                TOP_Z + LID_T - tip,
-            )
+            "  T=%.1f overlap=%.4f | top of the board + leads %.2f, lid underside %.2f"
+            % (t, v, zt, TOP_Z)
         )
         check(v < 1e-4, "ESP32 interference at PCB thickness %.1f" % t)
     plug0, keep0 = build_plug(ribs=False), build_keeper(ribs=False)
@@ -1451,51 +1466,60 @@ def verify(world, arm):
         )
         check(v < 1e-4, "DHT22 interference at body thickness %.1f" % bt)
 
-    # ---- swing clamps
+    # ---- swing clamps (in the gap; the lower layer at its thickest while they swing)
+    layer = build_ceiling(CEIL_T_MAX)
     for i, a in enumerate(CLAMP_ANGLES):
-        near = body.common(
-            moved(box(-16, -36, -BEZEL_T - 1, 36, 22, HOUSING_Z + 1), clamp_plc(a))
-        )
+        loc = moved(box(-16, -36, -BEZEL_T - 1, 36, 22, ROOF_Z), clamp_plc(a))
+        near = [s.common(loc) for s in (body, tower, lid, world["MZ_Frame"])]
+
+        def hit(s):
+            return sum(ovl(n, s) for n in near)
+
         for z in (CEIL_T_MIN, CEIL_T, CEIL_T_MAX, ARM_PARK_Z):
             for sw in (-90, -60, -30, 0):
-                s = arm_at(arm, a, sw, z)
-                v = ovl(near, s) + ovl(tower, s)
+                v = hit(arm_at(arm, a, sw, z))
                 check(
                     v < 1e-4,
-                    "arm %d hits the housing at swing %g, z %g (%.3f)"
-                    % (i + 1, sw, z, v),
+                    "arm %d hits the case at swing %g, z %g (%.3f)" % (i + 1, sw, z, v),
                 )
+        for sw in (-90, -60, -30, 0):
+            v = ovl(layer, arm_at(arm, a, sw, ARM_PARK_Z))
+            check(v < 1e-4, "parked arm %d cannot swing over the ceiling" % (i + 1))
         check(
-            ovl(near, arm_at(arm, a, 6, CEIL_T)) > 1e-3,
+            hit(arm_at(arm, a, 6, CEIL_T)) > 1e-3,
             "arm %d has no stop when pointing out" % (i + 1),
         )
         check(
-            ovl(near, arm_at(arm, a, -96, ARM_PARK_Z)) > 1e-3,
+            hit(arm_at(arm, a, -96, ARM_PARK_Z)) > 1e-3,
             "arm %d has no stop when tucked in" % (i + 1),
+        )
+        check(
+            hit(arm_at(arm, a, -90, ARM_PARK_Z + ARM_TOP_GAP + 0.3)) > 1e-3,
+            "arm %d has no top stop" % (i + 1),
         )
     rt = max(
         max_radius(arm_at(arm, CLAMP_ANGLES[0], sw, ARM_PARK_Z)) for sw in (-90, -92)
     )
     ro = max_radius(arm_at(arm, CLAMP_ANGLES[0], 0, CEIL_T))
-    end = -BEZEL_T + M4_LEN
-    nut_top = ARM_PARK_Z + ARM_T - NUT4_POCKET + NUT4_H
+    end = -BEZEL_T + CL_LEN
+    nut_top = ARM_PARK_Z + ARM_T - CL_NUT_POCKET + CL_NUT_H
     print(
-        "clamp arm: tucked in %.2f from the axis (hole %.1f) | out %.2f -> grips %.1f mm of the ceiling top"
+        "clamp arm: tucked in %.2f from the axis (hole %.1f) | out %.2f -> grips %.1f mm of the layer top"
         % (rt, HOLE_R, ro, ro - HOLE_R)
     )
     print(
-        "M4 screw end z=%.2f in the deck bearing (%.1f..%.1f); parked nyloc top %.2f; travel park->%g mm ceiling %.1f mm"
-        % (end, HOUSING_Z, HOUSING_Z + M4_BEARING, nut_top, CEIL_T, ARM_PARK_Z - CEIL_T)
+        "M3 clamp screw end z=%.2f in the lid (%.2f..%.2f); parked nyloc top %.2f; travel park->%g mm layer %.1f mm"
+        % (end, TOP_Z, TOP_Z + LID_T, nut_top, CEIL_T, ARM_PARK_Z - CEIL_T)
     )
     check(rt <= HOLE_R - 1.0, "tucked-in arms do not pass through the hole")
     check(
         ro - HOLE_R >= ARM_GRIP_MIN,
         "arms grip less than %g mm of the ceiling" % ARM_GRIP_MIN,
     )
-    check(end >= nut_top + 1.0, "M4 screw too short for a parked arm")
+    check(end >= nut_top + 1.0, "clamp screw too short for a parked arm")
     check(
-        HOUSING_Z < end <= HOUSING_Z + M4_BEARING - 0.3,
-        "M4 screw end not in the deck bearing",
+        TOP_Z < end <= TOP_Z + LID_T - 0.3,
+        "clamp screw end not in its hole in the lid",
     )
     for k, s in (("housing", body), ("tower", tower), ("lid", lid)):
         check(
@@ -1593,15 +1617,21 @@ def verify(world, arm):
         not inside(tower, mz_plc().multVec(V(0, 0, -DECK_T + 0.5))),
         "MH-Z19B vents missing",
     )
-    # deck openings over a clamp channel stay closed: how much is left open
-    slab = cyl(0, 0, HOUSING_Z + 0.1, BODY_R, 0.3)
-    full = fuse_all([moved(c, mz_plc()) for c in mz_bay()[2]]).common(slab)
+    # the vents open into the plenum: through the deck, and nothing within 2 mm under it
+    vent = fuse_all([moved(c, mz_plc()) for c in mz_bay()[2]])
+    full = vent.common(cyl(0, 0, HOUSING_Z + 0.1, BODY_R, 0.3))
     frac = full.cut(tower).Volume / full.Volume
-    print("MH-Z19B vents: %.0f%% open to the plenum" % (100 * frac))
-    check(frac > 0.6, "MH-Z19B vents mostly over a clamp channel")
+    under = vent.common(cyl(0, 0, HOUSING_Z - 2.0, BODY_R, 2.0))
+    shut = sum(ovl(under, world[k]) for k in ("Body", "DHT_Lid", "Plug", "Keeper"))
+    print(
+        "MH-Z19B vents: %.0f%% open through the deck, %.0f%% blocked within 2 mm under it"
+        % (100 * frac, 100 * shut / under.Volume)
+    )
+    check(frac > 0.99, "MH-Z19B vents blocked in the deck")
+    check(shut / under.Volume < 0.05, "MH-Z19B vents blocked under the deck")
     x0, y0, x1, y1, _ = DECK_SLOT
     check(
-        not inside(tower, V((x0 + x1) / 2, (y0 + y1) / 2, HOUSING_Z + 1.5)),
+        not inside(tower, V((x0 + x1) / 2, (y0 + y1) / 2, HOUSING_Z + 1.0)),
         "deck slot missing",
     )
     vents = trim_vents()
@@ -1617,28 +1647,38 @@ def verify(world, arm):
             "no screwdriver access to the tower screw at %g" % a,
         )
         check(
-            inside(body, V(p.x, p.y, HOUSING_Z - 13))
-            and not inside(body, V(p.x, p.y, HOUSING_Z - 1)),
+            inside(body, V(p.x, p.y, TOWER_PILOT_Z0 - 0.5))
+            and not inside(body, V(p.x, p.y, HOUSING_Z - 1))
+            and DECK_Z - TOWER_SCREW_LEN > TOWER_PILOT_Z0,
             "no pilot hole for the tower screw at %g" % a,
         )
-    u = usb_center()
-    ut = polar(1, ESP_ANGLE + 90)
-    check(not inside(lid, V(u.x, u.y, TOP_Z + 0.5)), "USB-C slot missing")
-    check(
-        inside(lid, u + ut * (USB_W / 2 + 1.2) + V(0, 0, TOP_Z + 0.5 - u.z)),
-        "USB-C slot too long",
-    )
-    for a in CLAMP_ANGLES:
+    for a in CLAMP_ANGLES:  # screw path: trim, housing column, deck, tower column, lid
         p = clamp_plc(a).Base
         check(
-            not inside(tower, V(p.x, p.y, HOUSING_Z + 1))
-            and inside(tower, V(p.x, p.y, HOUSING_Z + M4_BEARING + 0.3)),
-            "no blind deck bearing over clamp screw at %g" % a,
+            not inside(body, V(p.x, p.y, -BEZEL_T + 0.5))
+            and not inside(body, V(p.x, p.y, HOUSING_Z - 1))
+            and inside(body, V(p.x, p.y + CL_BORE / 2 + 0.5, HOUSING_Z - 1)),
+            "no countersink / bore in the housing at clamp %g" % a,
         )
         check(
-            not inside(body, V(p.x, p.y, -BEZEL_T + 0.5)),
-            "no countersink at clamp %g" % a,
+            not inside(tower, V(p.x, p.y, DECK_Z + 3))
+            and not inside(lid, V(p.x, p.y, TOP_Z + 0.5)),
+            "clamp screw path blocked at %g" % a,
         )
+    for q in lid_cols():
+        check(
+            inside(tower, q + V(0, 0, DECK_Z + 1))
+            and not inside(tower, q + V(0, 0, TOP_Z - 1)),
+            "lid column or its pilot hole missing",
+        )
+    q = polar(BODY_R - WALL / 2, CABLE_ANGLE)
+    check(
+        not inside(tower, q + V(0, 0, CABLE_Z0 + 1))
+        and inside(tower, q + V(0, 0, CABLE_Z0 - 1))
+        and not inside(lid, polar(BODY_R - 1.0, CABLE_ANGLE) + V(0, 0, TOP_Z + 0.5)),
+        "power cable slot missing",
+    )
+    check(CABLE_Z0 >= CEIL_T_MAX + 0.5, "power cable slot below the top of the layer")
 
     for k, s in world.items():
         check(s.ShapeType == "Solid" and s.isValid(), "%s is not one valid solid" % k)
