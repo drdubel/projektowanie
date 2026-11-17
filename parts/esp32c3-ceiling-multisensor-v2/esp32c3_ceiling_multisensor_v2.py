@@ -24,8 +24,10 @@ every check passes.
    yoke, held down by the tower deck, keeps the trunnions in their slots.
  * DHT22 module: its grille sits flush in a window of the trim, held by crush ribs, in a bay of its own.
  * MH-Z19B: hangs chamber-down over vents in the deck of the sensor tower, pins up. Its frame (with the ESP32 tray)
-   sits on two pins and the top lid presses it down through two posts. Room air reaches it through vent slots in the
-   trim and the space under the deck (plenum).
+   fits round the pin spacers and sits on two pins, and the top lid presses it down through two posts. Room air
+   reaches it through vent slots in the trim and the space under the deck (plenum). The plenum is closed off from the
+   tower, which is open to the ceiling void: the leads go up through the deck one per hole, the chamber rests on a
+   rim round the vents and the frame closes the bay, so the sensor gets room air only.
  * ESP32-C3: lies flat on the tray. Power: a 5 V cable runs in the gap and comes in through a slot at the top of the
    wall, soldered to the 5V and GND pins; the USB-C is only for flashing before assembly.
  * Lid: three pins with crush ribs go into the lid columns of the tower. The tower is held on the housing by the
@@ -206,6 +208,10 @@ MZ_PIN_LEN, MZ_SPACER_H = 7.9, 2.5  # below the PCB in the datasheet orientation
 MZ_GAP = 1.2  # chamber (bump) to the vented floor
 MZ_CLR = 0.45
 MZ_FRAME_T = 2.0
+# rim round the vents that the chamber rests on, so the sensor breathes only through the vents (0: no rim); inset
+# from the chamber outline, since the chamber can shift MZ_CLR in its pocket; the ledges under the PCB ends sit
+# MZ_LEDGE_DROP lower, so the chamber rests on the rim
+MZ_RIM_W, MZ_RIM_IN, MZ_LEDGE_DROP = 1.0, 0.8, 0.15
 # frame: locating pins on two bosses (bay x, diagonally opposite) and posts up to the lid (bay x, y)
 MZ_BOSS_X, MZ_PIN_D, MZ_PIN_H = 14.5, 2.4, 2.0
 MZ_POSTS, MZ_POST_R = ((17.0, 6.5), (-17.0, 6.5)), 1.8
@@ -218,8 +224,15 @@ LID_PIN_D, LID_PIN_L, LID_RIB = 3.0, 4.5, 0.15
 # power: a 5 V cable runs in the gap and comes in through a slot in the wall and the lid rim
 CABLE_ANGLE, CABLE_W = 152.0, 6.0
 CABLE_Z0 = CEIL_T_MAX + 0.5  # slot bottom, above the lower layer of the ceiling
-# slots in the deck (x0, y0, x1, y1, width): DHT22 leads at the header end of its bay, HMMD leads beside the MH-Z19B
-DECK_SLOTS = ((15.0, 9.6, 22.0, 9.6, 2.6), (3.0, -18.8, 10.0, -18.8, 2.6))
+# the leads go up through the deck one per hole, so that the space under the deck stays closed off from the tower
+# (and the ceiling void behind it): rows of (first hole x, y), (step x, y), number of leads - the DHT22 leads over its
+# header pins, the HMMD leads beside the MH-Z19B
+LEAD_D, LEAD_CLR = (
+    1.2,
+    0.25,
+)  # outer diameter of a lead (measure yours), clearance in its hole
+LEAD_ROWS = (((20.85, 7.06), (0.0, 2.54), 3), ((3.0, -18.8), (2.2, 0.0), 5))
+MZ_SPACER_CLR = 0.2  # frame round the MH-Z19B pin spacers: the frame closes the bay off from the tower
 BAY_WALL = 1.6
 BOSS_R = 3.25
 
@@ -293,18 +306,6 @@ def rbox(x0, y0, z0, x1, y1, z1, r):
         r,
         lambda a, b: abs(a.x - b.x) < 1e-7 and abs(a.y - b.y) < 1e-7,
     )
-
-
-def slot(x0, y0, x1, y1, z0, h, w):
-    """Rounded slot of width w from (x0, y0) to (x1, y1)."""
-    d = V(x1 - x0, y1 - y0, 0)
-    ang = math.degrees(math.atan2(d.y, d.x))
-    s = box(0, -w / 2, 0, d.Length, w / 2, h).fuse(
-        [cyl(0, 0, 0, w / 2, h), cyl(d.Length, 0, 0, w / 2, h)]
-    )
-    s.rotate(V(0, 0, 0), V(0, 0, 1), ang)
-    s.translate(V(x0, y0, z0))
-    return s
 
 
 def prism(pts, y0, y1):
@@ -958,9 +959,10 @@ def mz_bay():
         ]
     )
     cx = MZ_CH_L / 2 + MZ_CLR
+    drop = MZ_LEDGE_DROP if MZ_RIM_W > 0 else 0.0
     cuts = [
         box(-cx, -hy, 0, cx, hy, MZ_Z_PCB + 0.01),
-        box(-hx, -hy, MZ_Z_PCB, hx, hy, MZ_BAY_TOP + 1),
+        box(-hx, -hy, MZ_Z_PCB - drop, hx, hy, MZ_BAY_TOP + 1),
     ]
     for s in (-1, 1):  # reliefs in the ledges for the solder joints of the pins
         cuts.append(
@@ -979,6 +981,18 @@ def mz_bay():
         for x in (-10.5 + 3.5 * i for i in range(7))
     ]
     return walls, cuts, openings, bosses
+
+
+def mz_rim():
+    """Bay coordinates: rim on the deck round the vents, up to the chamber face; the chamber rests on it, so the
+    sensor takes in air only through the vents, not from the rest of the bay. None with MZ_RIM_W = 0."""
+    if MZ_RIM_W <= 0:
+        return None
+    ox, oy, w = MZ_CH_L / 2 - MZ_RIM_IN, MZ_CH_W / 2 - MZ_RIM_IN, MZ_RIM_W
+    z1 = MZ_GAP + MZ_BUMP_H  # chamber face
+    return rbox(-ox, -oy, -0.01, ox, oy, z1, 0.6).cut(
+        rbox(-ox + w, -oy + w, -1, ox - w, oy - w, z1 + 1, 0.3)
+    )
 
 
 def esp_tray():
@@ -1010,11 +1024,18 @@ def tray_plate():
     return box(x0, y0, z, -x0, y0 + PCB_L + g, z + MZ_FRAME_T)
 
 
-def deck_slots():
+def lead_holes():
+    """World xy of the holes for the leads through the deck, one per lead."""
     return [
-        slot(x0, y0, x1, y1, HOUSING_Z - 1, DECK_T + 2, w)
-        for x0, y0, x1, y1, w in DECK_SLOTS
+        V(x + i * dx, y + i * dy, 0)
+        for (x, y), (dx, dy), n in LEAD_ROWS
+        for i in range(n)
     ]
+
+
+def deck_holes():
+    r = (LEAD_D + LEAD_CLR) / 2
+    return [cyl(q.x, q.y, HOUSING_Z - 1, r, DECK_T + 2) for q in lead_holes()]
 
 
 def cable_slot():
@@ -1116,7 +1137,7 @@ def build_tower():
     walls, bcuts, bopen, _ = mz_bay()
     adds = [shell, moved(walls, mz_plc())]
     cuts = [moved(c, mz_plc()) for c in bcuts]
-    openings = [moved(c, mz_plc()) for c in bopen] + deck_slots()
+    openings = [moved(c, mz_plc()) for c in bopen] + deck_holes()
     for a in CLAMP_ANGLES:
         p = clamp_plc(a)
         adds.append(moved(column(COL_R_IN, TCOL_R, DECK_Z - 0.01, SWEEP_Z0), p))
@@ -1130,6 +1151,9 @@ def build_tower():
         )
     cuts.append(cable_slot())
     tower = fuse_all(adds).cut(fuse_all(cuts))
+    rim = mz_rim()
+    if rim is not None:
+        tower = tower.fuse(moved(rim, mz_plc()))
     tower = tower.cut(fuse_all(openings))
     return solid(tower.removeSplitter())
 
@@ -1200,8 +1224,9 @@ def build_lid(ribs=True):
 
 
 def build_mz_frame():
-    """Bay coordinates: frame over the MH-Z19B (slots for its pins, holes for the locating pins), the ESP32 tray and
-    two posts that the lid presses down; clear of the spindle columns."""
+    """Bay coordinates: frame over the MH-Z19B (openings that fit round its pin spacers, so it closes the bay off
+    from the tower; holes for the locating pins), the ESP32 tray and two posts that the lid presses down; clear of
+    the spindle columns."""
     hx, hy, t, z = MZ_PCB_L / 2 + 0.35, MZ_CH_W / 2 + MZ_CLR, BAY_WALL, MZ_BAY_TOP
     zt = z + MZ_FRAME_T
     bosses = mz_bay()[3]
@@ -1214,10 +1239,12 @@ def build_mz_frame():
     cuts = [
         cyl(bx, by, z - 1, MZ_PIN_D / 2 + 0.15, MZ_FRAME_T + 2) for bx, by in bosses
     ]
-    cuts += [
-        box(s * MZ_PIN_X - 2.1, -hy + 0.6, z - 1, s * MZ_PIN_X + 2.1, hy - 0.6, zt + 3)
-        for s in (-1, 1)
-    ]
+    c, h = MZ_SPACER_CLR, PIN_PITCH / 2
+    for s, n in zip((-1, 1), MZ_PIN_N):  # the leads on the pin ends go up through these
+        x, y1 = s * MZ_PIN_X, MZ_PIN_Y0 + PIN_PITCH * (n - 1)
+        cuts.append(
+            box(x - h - c, MZ_PIN_Y0 - h - c, z - 1, x + h + c, y1 + h + c, zt + 3)
+        )
     inv = mz_plc().inverse()
     cuts += [
         moved(
@@ -1285,7 +1312,7 @@ SPECS = [
     ),
     (
         "Room air",
-        "slots in the trim by the wall feed the space under the deck, where the MH-Z19B vents open; the DHT22 has its own window in the trim",
+        "slots in the trim by the wall feed the space under the deck, where the MH-Z19B vents open; that space is closed off from the tower (one deck hole per lead, frame tight round the MH-Z19B pin spacers) and the chamber rests on a rim round its vents, so the sensor gets room air and not ceiling-void air; the DHT22 has its own window in the trim",
         "design choice",
     ),
     (
@@ -1301,7 +1328,8 @@ SPECS = [
     ),
     (
         "Wiring",
-        "no headers or DuPont plugs: leads soldered straight into the ESP32 and HMMD pin holes and onto the DHT22 / MH-Z19B pins",
+        "no headers or DuPont plugs: leads soldered straight into the ESP32 and HMMD pin holes and onto the DHT22 / MH-Z19B pins; the DHT22 and HMMD leads go up through the deck one per hole, sized for %g mm leads"
+        % LEAD_D,
         "user choice",
     ),
     (
@@ -1853,17 +1881,107 @@ def verify(world, arm):
     )
     check(frac > 0.99, "MH-Z19B vents blocked in the deck")
     check(shut / under.Volume < 0.05, "MH-Z19B vents blocked under the deck")
-    for x0, y0, x1, y1, _ in DECK_SLOTS:
-        check(
-            not inside(tower, V((x0 + x1) / 2, (y0 + y1) / 2, HOUSING_Z + 1.0)),
-            "deck slot at (%g, %g) missing" % (x0, y0),
-        )
     vents = trim_vents()
     area = sum(s.Volume for s in vents) / (BEZEL_T + 1.5)
     print("trim vents: %d slots, %.0f mm2" % (len(vents), area))
     check(len(vents) >= 4 and area > 80, "too few trim vents")
     for s in vents[:1]:
         check(not inside(body, s.CenterOfMass), "trim vents missing")
+    for (
+        q
+    ) in lead_holes():  # one per lead, from the space under the deck up into the tower
+        check(
+            not inside(tower, q + V(0, 0, HOUSING_Z + 1.0))
+            and not inside(tower, q + V(0, 0, DECK_Z + 1.0))
+            and not inside(body, q + V(0, 0, HOUSING_Z - 1.0)),
+            "lead hole at (%.1f, %.1f) missing or blocked" % (q.x, q.y),
+        )
+    # the space under the deck is closed off from the tower (and the ceiling void behind it): besides the MH-Z19B
+    # vents (into its bay) and the spindle bores (over the columns), only the lead holes go through the deck, and
+    # the frame closes the bay round the pin spacers
+    zm = HOUSING_Z + DECK_T / 2
+    hx, hy = MZ_PCB_L / 2 + 0.35, MZ_CH_W / 2 + MZ_CLR
+    known = [moved(box(-hx, -hy, -DECK_T - 1, hx, hy, 1), mz_plc())] + [
+        moved(column(COL_R_IN, COL_R_OUT, zm - 1, zm + 1), clamp_plc(a))
+        for a in CLAMP_ANGLES
+    ]
+    deck_open = cyl(0, 0, zm - 0.05, BODY_R - WALL - 0.05, 0.1).cut(tower)
+    holes = deck_open.cut(fuse_all(known)).Volume / 0.1
+    n = len(lead_holes())
+    rings = holes - n * math.pi * LEAD_D**2 / 4
+    zf = MZ_BAY_TOP + MZ_FRAME_T / 2
+    spacers = fuse_all(
+        [
+            moved(s, mz_plc())
+            for k, (_, s, _) in build_mz().items()
+            if k.startswith("Spacer")
+        ]
+    )
+    bay_up = (
+        moved(box(-hx, -hy, zf - 0.05, hx, hy, zf + 0.05), mz_plc())
+        .cut(world["MZ_Frame"])
+        .cut(spacers)
+        .Volume
+        / 0.1
+    )
+    opening = moved(cradle()[2][0], cradle_plc())
+    pod_out = moved(pod_barrel().fuse(trunnions()), hp)  # outline, pocket filled
+    gap = opening.cut(pod_out).common(box(-60, -60, -1.55, 60, 60, -1.45)).Volume / 0.1
+    print(
+        "space under the deck: %.0f mm2 open to the room (trim vents, gap round the pod), into the tower only %.1f mm2 round the %d leads; the MH-Z19B bay opens to the tower through %.1f mm2 round the pin spacers"
+        % (area + gap, rings, n, bay_up)
+    )
+    # the chamber rests on a rim round the vents: the sensor breathes only through them, and whatever gets into the
+    # rest of its bay cannot reach its inlet
+    rim = mz_rim()
+    if rim is not None:
+        mzp, mz = mz_plc(), build_mz()
+        ch, pcb = mz["Chamber"][1], mz["PCB"][1]
+        ix, iy = MZ_CH_L / 2 - MZ_RIM_IN - MZ_RIM_W, MZ_CH_W / 2 - MZ_RIM_IN - MZ_RIM_W
+        check(
+            all(
+                max(-v.BoundBox.XMin, v.BoundBox.XMax) <= ix
+                and max(-v.BoundBox.YMin, v.BoundBox.YMax) <= iy
+                for v in mz_bay()[2]
+            ),
+            "MH-Z19B vents not all inside the rim",
+        )
+        down = App.Placement(V(0, 0, -0.05), App.Rotation())
+        check(
+            ovl(tower, moved(ch, mzp.multiply(down))) > 1e-4
+            and ovl(tower, moved(pcb, mzp.multiply(down))) < 1e-6,
+            "MH-Z19B does not rest on its rim",
+        )
+        z1 = MZ_GAP + MZ_BUMP_H
+        top = rim.common(box(-50, -50, z1 - 0.1, 50, 50, z1 + 1))
+        uncovered = max(
+            top.cut(
+                rbox(
+                    -MZ_CH_L / 2 + dx,
+                    -MZ_CH_W / 2 + dy,
+                    -5,
+                    MZ_CH_L / 2 + dx,
+                    MZ_CH_W / 2 + dy,
+                    20,
+                    1.0,
+                )
+            ).Volume
+            for dx in (-MZ_CLR, MZ_CLR)
+            for dy in (-MZ_CLR, MZ_CLR)
+        )
+        check(
+            uncovered < 1e-4, "rim not under the chamber when it shifts in its pocket"
+        )
+        print(
+            "MH-Z19B rests on a %.1f mm rim round its vents (ledges %.2f mm low): it breathes only through the vents"
+            % (MZ_RIM_W, MZ_LEDGE_DROP)
+        )
+    check(
+        holes <= n * math.pi * ((LEAD_D + LEAD_CLR) / 2) ** 2 + 0.5,
+        "space under the deck has other openings into the tower (%.1f mm2)" % holes,
+    )
+    check(bay_up <= 15.0, "MH-Z19B bay open to the tower (%.1f mm2)" % bay_up)
+    check(LEAD_CLR <= 0.4, "lead holes too loose to close the deck")
     for a in CLAMP_ANGLES:  # spindle path: trim, housing column, deck, tower column
         p = clamp_plc(a)
         q = p.Base

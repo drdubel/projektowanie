@@ -88,7 +88,11 @@ Same ceiling, outline and modules as v1: a 68 mm body in a 70 mm hole through a 
 - **Clamps:** each arm is printed in one piece with its spindle, which runs down through the tower and the housing. Its cross-slotted end sits in a hole in the trim, 3.2 mm deep. Turn it clockwise (seen from the room) with a flat screwdriver. The first 50° swing the arm out level into the gap, over the lower layer. Over the next 100°, a lug on the spindle runs down a helical groove in the housing column and pulls the arm down onto the top of the layer, up to 2.8 mm. The ramp is 18.7° at the lug, so it holds by itself. The arm reaches 49.5 mm from the axis and grips 12.2–14.5 mm of the layer top for any layer from 28.5 to 30.5 mm thick (13.9 mm on 30 mm), against 8 mm in v1. Turning anticlockwise lifts the arm and swings it back in, up to the end of the groove.
 - **HMMD:** the HMMD sits in a barrel-shaped pod whose flat face is the radome (0.8 mm wall, 6.2 mm air gap, as before). The pod tilts on two trunnions from 0° to 35° toward the same side as v1. A leaf spring in the housing clicks into grooves on the barrel every 5°. To set the tilt, push the edge of the pod from the room. To aim it, turn the whole unit in the hole. The pod sticks out 7.3 mm below the trim at 0° and 12.0 mm at 35° (v1: 10 mm at its fixed 25°).
 - **Joints:** the three spindles locate the tower and hold it on the housing. While the arms are tucked in, the lid sits just over them, so the unit holds together in your hand. The lid has three pins with crush ribs that go into the lid columns. The MH-Z19B frame sits on two pins, and the lid presses it down through two posts. The DHT22 body and the HMMD keeper are held by crush ribs. The pod's trunnions sit in slots of its cradle, under a yoke that the deck holds down.
-- **DHT22, MH-Z19B, ESP32, power and wiring:** as in v1. The DHT22 bay is now open at the top to the plenum, and its leads go up through a slot in the deck.
+- **Room air for the MH-Z19B:** as in v1, it comes in through the slots in the trim and the space under the deck. In v2 that space is closed off from the tower, which is open to the ceiling void through the arm cut-outs, so the sensor gets room air and not air from the ceiling void:
+  - The DHT22 and HMMD leads go up through the deck one per hole. The space under the deck has 201 mm² of openings to the room, and only 4.2 mm² of thin rings round the leads into the tower.
+  - The MH-Z19B's chamber rests on a 1 mm rim round its vents, so it breathes only through the vents. The ledges under the PCB ends sit 0.15 mm lower, so the chamber always lands on the rim.
+  - The frame fits closely round the sensor's pin spacers, which also closes the rest of its bay off from the tower.
+- **DHT22, ESP32, power and wiring:** as in v1. The DHT22 bay is now open at the top to the space under the deck.
 
 Printed parts, one STL each in `stl/`: `housing`, `sensor_tower`, `hmmd_pod`, `hmmd_keeper`, `pod_yoke`, `mhz19b_bay_frame`, `top_lid` and `clamp_arm_x3` (print it three times).
 
@@ -98,9 +102,9 @@ Assembly:
 2. Solder the leads to the DHT22 pins and press it grille-down into its window in the housing.
 3. Solder five leads to the HMMD's J2 pads. Put the HMMD into the pod with its antennas toward the flat face, resting on the three ledges, and push the keeper in with the leads outside it.
 4. Drop the pod into its cradle from above, so that its trunnions go down the two slots (the leaf spring gives way). Then push the yoke's legs into the slots on top of the trunnions.
-5. Thread the DHT22 and HMMD leads up through the two slots in the deck and set the tower on the housing.
+5. Thread each DHT22 and HMMD lead up through its own hole in the deck (three over the DHT22's pins, five beside the MH-Z19B bay) and set the tower on the housing.
 6. Put the three clamp arms in from above, each one tucked in along the wall. Its lug slides down the channels in the tower and the housing until the arm rests on its spindle, and the spindle end shows in its hole in the trim.
-7. Solder the leads to the MH-Z19B pins, put it chamber-down into its bay, and set the frame on its two pins.
+7. Solder the leads to the MH-Z19B pins and put it chamber-down into its bay. Thread its leads through the two openings in the frame, then press the frame down over the pin spacers onto its two pins.
 8. Lead the 5 V cable in through the slot at the top of the wall. Solder it and the other leads to the ESP32, then lay the ESP32 on its tray, components up.
 9. Press the lid on, with the cable in its notch.
 10. Check that every spindle is turned anticlockwise to its stop, so the arms are tucked in. Push the unit into the hole, turn it so the HMMD faces where you want, and turn each spindle clockwise until its arm is tight on the layer. Then click the pod to the tilt you want.
@@ -111,6 +115,9 @@ Caveats:
 
 - The ceiling limits are the same as v1's: a lower layer 28.5–30.5 mm thick, with the upper ceiling at least 38 mm up. The MH-Z19B, DHT22 and Wi-Fi caveats of v1 apply too.
 - The crush ribs bite 0.15 mm, the spindles have 0.2 mm of radial play in their bores, and the lugs have 0.25 mm in their grooves. If a fit comes out too loose or too tight on your printer, change `DHT_RIB`, `LID_RIB`, `SP_CLR` or `LUG_CLR` and re-run the script. Don't glue anything.
+- The lead holes in the deck are 1.45 mm across, for leads 1.2 mm thick. Measure yours: for other leads, set `LEAD_D` and reprint the tower. The leads should fill their holes, since that is what keeps ceiling-void air away from the MH-Z19B.
+- The rim assumes, as v1 did, that the MH-Z19B takes in gas through the flat face of its gold chamber, the one over the vents. If yours has openings on the sides of the chamber, set `MZ_RIM_W = 0` and reprint the tower.
+- With the space under the deck closed off, air reaches the MH-Z19B only by diffusion from the room. By a rough estimate, that adds 2–3 minutes before a change in the room shows fully in the reading, on top of the sensor's own response (under 2 minutes).
 - At 35° the high edge of the radome face sits 1 mm inside the trim opening, so the trim may shade the shallowest part of the beam on that side. Up to 30° the whole face stays below the trim.
 - The arms clamp at an angle that depends on the layer thickness: −37° from radial on a 30.5 mm layer, −19° on 30 mm and +34° on 28.5 mm. The grip figures above already account for this.
 
