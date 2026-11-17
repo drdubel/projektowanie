@@ -9,6 +9,7 @@
 | [`esp32c3-supermini-hmmd-case`](parts/esp32c3-supermini-hmmd-case) | Two-part case (base + lid) for an ESP32-C3 SuperMini Plus (red, V2) together with a Waveshare HMMD mmWave sensor. The GPIO header pins stick out through the lid; the sensor's antennas look down through a thin radome floor in the base. |
 | [`esp32c3-supermini-case`](parts/esp32c3-supermini-case) | ESP32-only variant of the case, without the sensor bay. Same two-part design with the header pins on top. |
 | [`esp32c3-ceiling-multisensor`](parts/esp32c3-ceiling-multisensor) | Round ceiling unit for a 70 mm hole in a two-layer ceiling (30 mm lower layer, gap, upper ceiling 40 mm up): ESP32-C3 SuperMini Plus, DHT22 module, MH-Z19B CO₂ sensor and the Waveshare HMMD, all within 38 mm of the ceiling surface. Three swing clamps open in the gap and grip the top of the lower layer. On the room side the HMMD looks out through a fixed radome face tilted 25°, beside the flush DHT22 grille. |
+| [`esp32c3-ceiling-multisensor-v2`](parts/esp32c3-ceiling-multisensor-v2) | Version 2 of the ceiling unit: same ceiling, size and modules, but made only of printed parts, with no screws, nuts or glue. The clamp arms are printed in one piece with their spindles and grip 12–14.5 mm of the layer top (v1: 8 mm). The HMMD sits in a barrel pod that tilts 0–35° in 5° clicks. |
 
 ## Layout
 
@@ -79,6 +80,39 @@ Caveats:
 - The MH-Z19B samples the air under the deck, so it responds a little more slowly than a sensor in the trim would.
 - If the HMMD plug sits loose (printers differ), add a drop of glue at its top edge.
 - The ESP32 sits between the two ceiling layers. If Wi-Fi is weak there, use the U.FL socket with an external antenna led out through the cable slot.
+
+## Ceiling multisensor v2
+
+Same ceiling, outline and modules as v1: a 68 mm body in a 70 mm hole through a 30 mm lower layer, a 94 mm trim, and a top 37.9 mm above the ceiling surface (2.1 mm clear of the upper ceiling). The layout inside is also much the same. The difference is that every part is printed. Apart from the four modules, their leads and the 5 V cable, nothing goes in: no screws, nuts, springs or glue.
+
+- **Clamps:** each arm is printed in one piece with its spindle, which runs down through the tower and the housing. Its cross-slotted end sits in a hole in the trim, 3.2 mm deep. Turn it clockwise (seen from the room) with a flat screwdriver. The first 50° swing the arm out level into the gap, over the lower layer. Over the next 100°, a lug on the spindle runs down a helical groove in the housing column and pulls the arm down onto the top of the layer, up to 2.8 mm. The ramp is 18.7° at the lug, so it holds by itself. The arm reaches 49.5 mm from the axis and grips 12.2–14.5 mm of the layer top for any layer from 28.5 to 30.5 mm thick (13.9 mm on 30 mm), against 8 mm in v1. Turning anticlockwise lifts the arm and swings it back in, up to the end of the groove.
+- **HMMD:** the HMMD sits in a barrel-shaped pod whose flat face is the radome (0.8 mm wall, 6.2 mm air gap, as before). The pod tilts on two trunnions from 0° to 35° toward the same side as v1. A leaf spring in the housing clicks into grooves on the barrel every 5°. To set the tilt, push the edge of the pod from the room. To aim it, turn the whole unit in the hole. The pod sticks out 7.3 mm below the trim at 0° and 12.0 mm at 35° (v1: 10 mm at its fixed 25°).
+- **Joints:** the three spindles locate the tower and hold it on the housing. While the arms are tucked in, the lid sits just over them, so the unit holds together in your hand. The lid has three pins with crush ribs that go into the lid columns. The MH-Z19B frame sits on two pins, and the lid presses it down through two posts. The DHT22 body and the HMMD keeper are held by crush ribs. The pod's trunnions sit in slots of its cradle, under a yoke that the deck holds down.
+- **DHT22, MH-Z19B, ESP32, power and wiring:** as in v1. The DHT22 bay is now open at the top to the plenum, and its leads go up through a slot in the deck.
+
+Printed parts, one STL each in `stl/`: `housing`, `sensor_tower`, `hmmd_pod`, `hmmd_keeper`, `pod_yoke`, `mhz19b_bay_frame`, `top_lid` and `clamp_arm_x3` (print it three times).
+
+Assembly:
+
+1. Flash the ESP32 over USB-C. Once the unit is assembled, you can only update it over Wi-Fi.
+2. Solder the leads to the DHT22 pins and press it grille-down into its window in the housing.
+3. Solder five leads to the HMMD's J2 pads. Put the HMMD into the pod with its antennas toward the flat face, resting on the three ledges, and push the keeper in with the leads outside it.
+4. Drop the pod into its cradle from above, so that its trunnions go down the two slots (the leaf spring gives way). Then push the yoke's legs into the slots on top of the trunnions.
+5. Thread the DHT22 and HMMD leads up through the two slots in the deck and set the tower on the housing.
+6. Put the three clamp arms in from above, each one tucked in along the wall. Its lug slides down the channels in the tower and the housing until the arm rests on its spindle, and the spindle end shows in its hole in the trim.
+7. Solder the leads to the MH-Z19B pins, put it chamber-down into its bay, and set the frame on its two pins.
+8. Lead the 5 V cable in through the slot at the top of the wall. Solder it and the other leads to the ESP32, then lay the ESP32 on its tray, components up.
+9. Press the lid on, with the cable in its notch.
+10. Check that every spindle is turned anticlockwise to its stop, so the arms are tucked in. Push the unit into the hole, turn it so the HMMD faces where you want, and turn each spindle clockwise until its arm is tight on the layer. Then click the pod to the tilt you want.
+
+Print the housing trim face down and the tower deck down. Print the pod radome face down on a smooth bed; its trunnions are short stubs that print without support. Print the clamp arms with the arm's top face down and the spindle standing up, the lid with its top face down and the pins up, and the yoke on its side. Print the keeper and the frame as exported. None of the parts need supports.
+
+Caveats:
+
+- The ceiling limits are the same as v1's: a lower layer 28.5–30.5 mm thick, with the upper ceiling at least 38 mm up. The MH-Z19B, DHT22 and Wi-Fi caveats of v1 apply too.
+- The crush ribs bite 0.15 mm, the spindles have 0.2 mm of radial play in their bores, and the lugs have 0.25 mm in their grooves. If a fit comes out too loose or too tight on your printer, change `DHT_RIB`, `LID_RIB`, `SP_CLR` or `LUG_CLR` and re-run the script. Don't glue anything.
+- At 35° the high edge of the radome face sits 1 mm inside the trim opening, so the trim may shade the shallowest part of the beam on that side. Up to 30° the whole face stays below the trim.
+- The arms clamp at an angle that depends on the layer thickness: −37° from radial on a 30.5 mm layer, −19° on 30 mm and +34° on 28.5 mm. The grip figures above already account for this.
 
 ## Adding a part
 
